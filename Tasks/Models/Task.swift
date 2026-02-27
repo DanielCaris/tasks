@@ -11,6 +11,7 @@ final class TaskItem {
     var title: String
     var status: String
     var assignee: String?
+    var descriptionText: String?
     var urlString: String?
     var priority: String?
     var urgency: Int?
@@ -24,6 +25,7 @@ final class TaskItem {
         title: String,
         status: String,
         assignee: String? = nil,
+        description: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
         urgency: Int? = nil,
@@ -36,6 +38,7 @@ final class TaskItem {
         self.title = title
         self.status = status
         self.assignee = assignee
+        self.descriptionText = description
         self.urlString = url?.absoluteString
         self.priority = priority
         self.urgency = urgency

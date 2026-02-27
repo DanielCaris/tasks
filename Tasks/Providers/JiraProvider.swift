@@ -52,13 +52,65 @@ final class JiraProvider: IssueProviderProtocol {
         return try parseSearchResponse(data: data)
     }
 
+    func updateIssue(externalId: String, title: String?, description: String?) async throws {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(externalId)") else {
+            throw JiraError.invalidURL
+        }
+
+        var fields: [String: Any] = [:]
+        if let title { fields["summary"] = title }
+        if let description { fields["description"] = plainTextToADF(description) }
+
+        guard !fields.isEmpty else { return }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["fields": fields])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+    }
+
+    /// Convierte texto plano a Atlassian Document Format para la descripción de Jira.
+    private func plainTextToADF(_ text: String) -> [String: Any] {
+        let paragraphs = text.components(separatedBy: .newlines)
+        let content: [[String: Any]] = paragraphs.map { line in
+            [
+                "type": "paragraph",
+                "content": [["type": "text", "text": line]]
+            ]
+        }
+        return [
+            "type": "doc",
+            "version": 1,
+            "content": content.isEmpty ? [["type": "paragraph", "content": []]] : content
+        ]
+    }
+
     private func buildSearchURL() -> URL? {
         // Usar el nuevo endpoint /search/jql (el antiguo /search devuelve 410 Gone)
         var components = URLComponents(string: "\(baseURL)/rest/api/3/search/jql")
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "100"),
-            URLQueryItem(name: "fields", value: "summary,status,priority,assignee,created,updated")
+            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated")
         ]
         return components?.url
     }
@@ -114,11 +166,13 @@ final class JiraProvider: IssueProviderProtocol {
             let url = URL(string: "\(baseURL)/browse/\(issue.key)")
             let createdAt = issue.fields.created
             let updatedAt = issue.fields.updated
+            let descriptionText = issue.fields.description?.plainText
             return IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
                 status: issue.fields.status.name,
                 assignee: assigneeName,
+                description: descriptionText?.isEmpty == false ? descriptionText : nil,
                 url: url,
                 priority: issue.fields.priority?.name,
                 createdAt: createdAt,
@@ -145,11 +199,47 @@ private struct JiraIssue: Decodable {
 
 private struct JiraIssueFields: Decodable {
     let summary: String
+    let description: JiraDescription?
     let status: JiraStatus
     let priority: JiraPriority?
     let assignee: JiraUser?
     let created: Date?
     let updated: Date?
+}
+
+/// Descripción en ADF (Atlassian Document Format). Se decodifica como JSON genérico para extraer texto.
+private struct JiraDescription: Decodable {
+    let raw: Any?
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        raw = (try? container.decode(AnyCodable.self))?.value
+    }
+
+    var plainText: String {
+        guard let dict = raw as? [String: Any],
+              let content = dict["content"] as? [[String: Any]] else { return "" }
+        return content.compactMap { extractText(from: $0) }.joined(separator: "\n")
+    }
+
+    private func extractText(from node: [String: Any]) -> String? {
+        if let text = node["text"] as? String { return text }
+        guard let children = node["content"] as? [[String: Any]] else { return nil }
+        return children.compactMap { extractText(from: $0) }.joined()
+    }
+}
+
+private struct AnyCodable: Decodable {
+    let value: Any
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let v = try? container.decode(String.self) { value = v }
+        else if let v = try? container.decode(Double.self) { value = v }
+        else if let v = try? container.decode(Bool.self) { value = v }
+        else if let v = try? container.decode([AnyCodable].self) { value = v.map { $0.value } }
+        else if let v = try? container.decode([String: AnyCodable].self) { value = v.mapValues { $0.value } }
+        else { value = NSNull() }
+    }
 }
 
 private struct JiraStatus: Decodable {

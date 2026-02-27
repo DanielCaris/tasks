@@ -8,6 +8,11 @@ struct TaskDetailView: View {
     @State private var urgency: Int
     @State private var impact: Int
     @State private var effort: Int
+    @State private var editableTitle: String
+    @State private var editableDescription: String
+    @State private var isEditingTitle = false
+    @State private var isSavingToJira = false
+    @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore) {
         self.task = task
@@ -15,6 +20,8 @@ struct TaskDetailView: View {
         _urgency = State(initialValue: task.urgency ?? 1)
         _impact = State(initialValue: task.impact ?? 1)
         _effort = State(initialValue: task.effort ?? 1)
+        _editableTitle = State(initialValue: task.title)
+        _editableDescription = State(initialValue: task.descriptionText ?? "")
     }
 
     var body: some View {
@@ -41,9 +48,35 @@ struct TaskDetailView: View {
                 .font(.headline)
                 .foregroundStyle(.secondary)
 
-            Text(task.title)
-                .font(.title2)
-                .fontWeight(.medium)
+            Group {
+                if isEditingTitle {
+                    TextField("Título", text: $editableTitle)
+                        .font(.title2)
+                        .fontWeight(.medium)
+                        .textFieldStyle(.plain)
+                        .focused($isTitleFocused)
+                        .onSubmit {
+                            isEditingTitle = false
+                            if editableTitle != task.title { saveToJira() }
+                        }
+                } else {
+                    Text(editableTitle)
+                        .font(.title2)
+                        .fontWeight(.medium)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture(count: 1) {
+                            isEditingTitle = true
+                            DispatchQueue.main.async { isTitleFocused = true }
+                        }
+                }
+            }
+            .onChange(of: isTitleFocused) { _, focused in
+                if !focused {
+                    isEditingTitle = false
+                    if editableTitle != task.title { saveToJira() }
+                }
+            }
 
             HStack {
                 Label(task.status, systemImage: "circle.fill")
@@ -57,6 +90,62 @@ struct TaskDetailView: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            if task.providerId == JiraProvider.providerId {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Descripción")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+
+                    TextEditor(text: $editableDescription)
+                        .font(.body)
+                        .frame(minHeight: 80, maxHeight: 200)
+                        .scrollContentBackground(.hidden)
+                        .padding(8)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+
+                    Button {
+                        saveToJira()
+                    } label: {
+                        Label {
+                            Text("Guardar en Jira")
+                        } icon: {
+                            if isSavingToJira {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.up.circle.fill")
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isSavingToJira || !hasEdits)
+                }
+            }
+        }
+        .onChange(of: task.title) { _, newValue in
+            if editableTitle != newValue { editableTitle = newValue }
+        }
+        .onChange(of: task.descriptionText) { _, newValue in
+            if editableDescription != (newValue ?? "") { editableDescription = newValue ?? "" }
+        }
+    }
+
+    private var hasEdits: Bool {
+        editableTitle != task.title || editableDescription != (task.descriptionText ?? "")
+    }
+
+    private func saveToJira() {
+        guard hasEdits else { return }
+        isSavingToJira = true
+        Task {
+            await taskStore.updateTaskInProvider(
+                task: task,
+                title: editableTitle != task.title ? editableTitle : nil,
+                description: editableDescription != (task.descriptionText ?? "") ? editableDescription : nil
+            )
+            isSavingToJira = false
         }
     }
 

@@ -50,6 +50,7 @@ final class TaskStore: ObservableObject {
                 existing.title = dto.title
                 existing.status = dto.status
                 existing.assignee = dto.assignee
+                existing.descriptionText = dto.description
                 existing.url = dto.url
                 existing.priority = dto.priority
                 existing.lastSyncedAt = Date()
@@ -60,6 +61,7 @@ final class TaskStore: ObservableObject {
                     title: dto.title,
                     status: dto.status,
                     assignee: dto.assignee,
+                    description: dto.description,
                     url: dto.url,
                     priority: dto.priority
                 )
@@ -77,6 +79,26 @@ final class TaskStore: ObservableObject {
 
     func sortByPriority() {
         tasks.sort { $0.priorityScore > $1.priorityScore }
+    }
+
+    func updateTaskInProvider(task: TaskItem, title: String?, description: String?) async {
+        guard let provider else {
+            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            return
+        }
+        do {
+            try await provider.updateIssue(externalId: task.externalId, title: title, description: description)
+            if let title {
+                task.title = title
+            }
+            if let description {
+                task.descriptionText = description
+            }
+            task.lastSyncedAt = Date()
+            try? modelContext.save()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func updatePriority(task: TaskItem, urgency: Int?, impact: Int?, effort: Int?) {

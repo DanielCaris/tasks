@@ -97,14 +97,15 @@ struct MainView: View {
     }
 
     private func setupProviderIfNeeded() {
-        guard taskStore.tasks.isEmpty else { return }
         let url = KeychainHelper.load(key: "jira_url")
         let email = KeychainHelper.load(key: "jira_email") ?? UserDefaults.standard.string(forKey: "jira_email")
         let token = KeychainHelper.load(key: "jira_api_token")
 
         if let url, let email, let token, !token.isEmpty {
             taskStore.setProvider(JiraProvider(baseURL: url, email: email, apiToken: token))
-            Task { await taskStore.fetchFromProvider() }
+            if taskStore.tasks.isEmpty {
+                Task { await taskStore.fetchFromProvider() }
+            }
         }
     }
 }

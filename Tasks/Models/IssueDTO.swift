@@ -6,6 +6,7 @@ struct IssueDTO: Identifiable {
     let title: String
     let status: String
     let assignee: String?
+    let description: String?
     let url: URL?
     let priority: String?
     let createdAt: Date?
@@ -18,6 +19,7 @@ struct IssueDTO: Identifiable {
         title: String,
         status: String,
         assignee: String? = nil,
+        description: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
         createdAt: Date? = nil,
@@ -27,6 +29,7 @@ struct IssueDTO: Identifiable {
         self.title = title
         self.status = status
         self.assignee = assignee
+        self.description = description
         self.url = url
         self.priority = priority
         self.createdAt = createdAt
