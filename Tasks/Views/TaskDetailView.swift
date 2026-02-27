@@ -228,7 +228,7 @@ struct TaskDetailView: View {
                             jiraEmail: KeychainHelper.load(key: "jira_email"),
                             jiraToken: KeychainHelper.load(key: "jira_api_token")
                         )
-                        .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280))
+                        .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280), alignment: .topLeading)
                         .background(.regularMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                         .overlay(alignment: .topLeading) {
                             RoundedRectangle(cornerRadius: 8)
@@ -238,8 +238,7 @@ struct TaskDetailView: View {
                         Text(task.descriptionText ?? "Sin descripción")
                             .font(.body)
                             .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .frame(minHeight: 200)
+                            .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
                             .padding(8)
                             .background(.regularMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
 

@@ -26,8 +26,10 @@ struct RichHTMLView: NSViewRepresentable {
         let fullHTML = """
         <!DOCTYPE html>
         <html>
-        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
-        <body>\(html)</body>
+        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>html,body{margin:0;padding:0;text-align:left;display:block;}</style>
+        </head>
+        <body style="vertical-align:top;">\(html)</body>
         </html>
         """
         let base = URL(string: baseURL) ?? URL(string: "https://example.atlassian.net")!
