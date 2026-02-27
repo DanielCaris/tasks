@@ -53,25 +53,6 @@ struct SettingsView: View {
 
                 SecureField("API Token", text: $jiraToken, prompt: Text("Token de Atlassian"))
                     .textFieldStyle(.roundedBorder)
-
-                Picker("Presets", selection: $jqlPreset) {
-                    ForEach(JQLPreset.allCases, id: \.self) { preset in
-                        Text(preset.rawValue).tag(preset)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: jqlPreset) { _, preset in
-                    if let query = preset.query {
-                        jql = query
-                    }
-                }
-
-                TextField("JQL (opcional)", text: $jql, prompt: Text("assignee = currentUser()"), axis: .vertical)
-                    .lineLimit(3...6)
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: jql) { _, _ in
-                        jqlPreset = JQLPreset.from(jql: jql)
-                    }
             } header: {
                 Text("Jira")
             } footer: {
@@ -130,6 +111,29 @@ struct SettingsView: View {
             }
 
             Section {
+                Picker("Presets", selection: $jqlPreset) {
+                    ForEach(JQLPreset.allCases, id: \.self) { preset in
+                        Text(preset.rawValue).tag(preset)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: jqlPreset) { _, preset in
+                    if let query = preset.query {
+                        jql = query
+                    }
+                }
+
+                TextField("JQL (opcional)", text: $jql, prompt: Text("assignee = currentUser()"), axis: .vertical)
+                    .lineLimit(3...6)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: jql) { _, _ in
+                        jqlPreset = JQLPreset.from(jql: jql)
+                    }
+            } header: {
+                Text("Consulta JQL")
+            }
+
+            Section {
                 Button {
                     testConnection()
                 } label: {
@@ -175,6 +179,7 @@ struct SettingsView: View {
             jiraURL = KeychainHelper.load(key: "jira_url") ?? ""
             jiraEmail = KeychainHelper.load(key: "jira_email") ?? ""
             jiraToken = KeychainHelper.load(key: "jira_api_token") ?? ""
+            jql = KeychainHelper.loadJQL() ?? "assignee = currentUser() ORDER BY updated DESC"
             jqlPreset = JQLPreset.from(jql: jql)
             selectedStatusFilters = taskStore.selectedStatusFilters
             testMessage = nil
@@ -231,6 +236,7 @@ struct SettingsView: View {
         KeychainHelper.save(key: "jira_url", value: url)
         KeychainHelper.save(key: "jira_email", value: email)
         KeychainHelper.save(key: "jira_api_token", value: jiraToken)
+        KeychainHelper.saveJQL(jql.isEmpty ? "assignee = currentUser() ORDER BY updated DESC" : jql)
         taskStore.setStatusFilters(selectedStatusFilters)
 
         taskStore.setProvider(JiraProvider(

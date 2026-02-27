@@ -113,7 +113,8 @@ struct MainView: View {
         let token = KeychainHelper.load(key: "jira_api_token")
 
         if let url, let email, let token, !token.isEmpty {
-            taskStore.setProvider(JiraProvider(baseURL: url, email: email, apiToken: token))
+            let jql = KeychainHelper.loadJQL() ?? "assignee = currentUser() ORDER BY updated DESC"
+            taskStore.setProvider(JiraProvider(baseURL: url, email: email, apiToken: token, jql: jql))
             if taskStore.tasks.isEmpty {
                 Task { await taskStore.fetchFromProvider() }
             }

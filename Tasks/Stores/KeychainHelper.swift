@@ -33,4 +33,12 @@ enum KeychainHelper {
     static func loadStatusFilters() -> [String] {
         suite.stringArray(forKey: prefix + "status_filters") ?? []
     }
+
+    static func saveJQL(_ jql: String) {
+        suite.set(jql, forKey: prefix + "jql")
+    }
+
+    static func loadJQL() -> String? {
+        suite.string(forKey: prefix + "jql")
+    }
 }
