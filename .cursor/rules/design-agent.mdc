@@ -1,0 +1,13 @@
+---
+description: Design Agent guide for design files (.pen, .fig, etc.)
+globs: "**/*.pen,**/*.fig"
+alwaysApply: false
+---
+
+# Design Agent
+
+When working with design files:
+
+- Invoke the **design-agent** skill for design changes.
+- **.pen files**: Use only Pencil MCP tools; never `Read` or `Grep` (they are encrypted).
+- **Other tools**: Use the corresponding MCP APIs based on availability.
