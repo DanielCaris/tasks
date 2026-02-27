@@ -1,0 +1,321 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		TASK001 /* TasksApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK101 /* TasksApp.swift */; };
+		TASK002 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = TASK102 /* Assets.xcassets */; };
+		TASK003 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = TASK103 /* Preview Assets.xcassets */; };
+		TASK004 /* Task.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK104 /* Task.swift */; };
+		TASK005 /* IssueDTO.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK105 /* IssueDTO.swift */; };
+		TASK006 /* IssueProviderProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK106 /* IssueProviderProtocol.swift */; };
+		TASK007 /* JiraProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK107 /* JiraProvider.swift */; };
+		TASK008 /* TaskStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK108 /* TaskStore.swift */; };
+		TASK009 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK109 /* KeychainHelper.swift */; };
+		TASK010 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK110 /* MainView.swift */; };
+		TASK011 /* TaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK111 /* TaskRowView.swift */; };
+		TASK012 /* TaskDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK112 /* TaskDetailView.swift */; };
+		TASK013 /* MiniView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK113 /* MiniView.swift */; };
+		TASK014 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK114 /* SettingsView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		TASK000 /* Tasks.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tasks.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		TASK101 /* TasksApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksApp.swift; sourceTree = "<group>"; };
+		TASK102 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		TASK103 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		TASK104 /* Task.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Task.swift; sourceTree = "<group>"; };
+		TASK105 /* IssueDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IssueDTO.swift; sourceTree = "<group>"; };
+		TASK106 /* IssueProviderProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IssueProviderProtocol.swift; sourceTree = "<group>"; };
+		TASK107 /* JiraProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JiraProvider.swift; sourceTree = "<group>"; };
+		TASK108 /* TaskStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskStore.swift; sourceTree = "<group>"; };
+		TASK109 /* KeychainHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainHelper.swift; sourceTree = "<group>"; };
+		TASK110 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
+		TASK111 /* TaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowView.swift; sourceTree = "<group>"; };
+		TASK112 /* TaskDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskDetailView.swift; sourceTree = "<group>"; };
+		TASK113 /* MiniView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniView.swift; sourceTree = "<group>"; };
+		TASK114 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		TASK200 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		TASK300 = {
+			isa = PBXGroup;
+			children = (
+				TASK301 /* Tasks */,
+				TASK302 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		TASK301 /* Tasks */ = {
+			isa = PBXGroup;
+			children = (
+				TASK101 /* TasksApp.swift */,
+				TASK303 /* Models */,
+				TASK304 /* Providers */,
+				TASK305 /* Stores */,
+				TASK306 /* Views */,
+				TASK102 /* Assets.xcassets */,
+				TASK307 /* Preview Content */,
+			);
+			path = Tasks;
+			sourceTree = "<group>";
+		};
+		TASK302 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				TASK000 /* Tasks.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		TASK303 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				TASK104 /* Task.swift */,
+				TASK105 /* IssueDTO.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		TASK304 /* Providers */ = {
+			isa = PBXGroup;
+			children = (
+				TASK106 /* IssueProviderProtocol.swift */,
+				TASK107 /* JiraProvider.swift */,
+			);
+			path = Providers;
+			sourceTree = "<group>";
+		};
+		TASK305 /* Stores */ = {
+			isa = PBXGroup;
+			children = (
+				TASK108 /* TaskStore.swift */,
+				TASK109 /* KeychainHelper.swift */,
+			);
+			path = Stores;
+			sourceTree = "<group>";
+		};
+		TASK306 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				TASK110 /* MainView.swift */,
+				TASK111 /* TaskRowView.swift */,
+				TASK112 /* TaskDetailView.swift */,
+				TASK113 /* MiniView.swift */,
+				TASK114 /* SettingsView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		TASK307 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				TASK103 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		TASK400 /* Tasks */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = TASK500 /* Build configuration list for PBXNativeTarget "Tasks" */;
+			buildPhases = (
+				TASK401 /* Sources */,
+				TASK200 /* Frameworks */,
+				TASK402 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Tasks;
+			productName = Tasks;
+			productReference = TASK000 /* Tasks.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		TASK600 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+			};
+			buildConfigurationList = TASK601 /* Build configuration list for PBXProject "Tasks" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = TASK300;
+			productRefGroup = TASK302 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				TASK400 /* Tasks */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		TASK402 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				TASK002 /* Assets.xcassets in Resources */,
+				TASK003 /* Preview Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		TASK401 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				TASK001 /* TasksApp.swift in Sources */,
+				TASK004 /* Task.swift in Sources */,
+				TASK005 /* IssueDTO.swift in Sources */,
+				TASK006 /* IssueProviderProtocol.swift in Sources */,
+				TASK007 /* JiraProvider.swift in Sources */,
+				TASK008 /* TaskStore.swift in Sources */,
+				TASK009 /* KeychainHelper.swift in Sources */,
+				TASK010 /* MainView.swift in Sources */,
+				TASK011 /* TaskRowView.swift in Sources */,
+				TASK012 /* TaskDetailView.swift in Sources */,
+				TASK013 /* MiniView.swift in Sources */,
+				TASK014 /* SettingsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		TASK700 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		TASK701 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+			};
+			name = Release;
+		};
+		TASK702 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Tasks/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tasks.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		TASK703 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Tasks/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tasks.app;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		TASK500 /* Build configuration list for PBXNativeTarget "Tasks" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				TASK702 /* Debug */,
+				TASK703 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		TASK601 /* Build configuration list for PBXProject "Tasks" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				TASK700 /* Debug */,
+				TASK701 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = TASK600 /* Project object */;
+}
