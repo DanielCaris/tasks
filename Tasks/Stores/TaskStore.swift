@@ -7,11 +7,23 @@ final class TaskStore: ObservableObject {
     private var sortTask: Task<Void, Never>?
 
     @Published var tasks: [TaskItem] = []
+    @Published var selectedStatusFilters: Set<String> = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var isMiniViewVisible = false
 
     private var provider: (any IssueProviderProtocol)?
+
+    /// Tareas filtradas por los status seleccionados. Si no hay filtros, muestra todas.
+    var filteredTasks: [TaskItem] {
+        guard !selectedStatusFilters.isEmpty else { return tasks }
+        return tasks.filter { selectedStatusFilters.contains($0.status) }
+    }
+
+    /// Status únicos descubiertos en las tareas actuales.
+    var knownStatuses: [String] {
+        Array(Set(tasks.map(\.status))).sorted()
+    }
 
     var providerId: String? {
         provider.map { type(of: $0).providerId }
@@ -19,6 +31,12 @@ final class TaskStore: ObservableObject {
 
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
+        selectedStatusFilters = Set(KeychainHelper.loadStatusFilters())
+    }
+
+    func setStatusFilters(_ filters: Set<String>) {
+        selectedStatusFilters = filters
+        KeychainHelper.saveStatusFilters(Array(filters))
     }
 
     func setProvider(_ provider: any IssueProviderProtocol) {
@@ -147,7 +165,7 @@ final class TaskStore: ObservableObject {
     }
 
     func topTasks(limit: Int = 5) -> [TaskItem] {
-        Array(tasks.prefix(limit))
+        Array(filteredTasks.prefix(limit))
     }
 
     func toggleMiniView() {

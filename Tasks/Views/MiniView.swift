@@ -6,11 +6,9 @@ struct MiniView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @EnvironmentObject private var taskStore: TaskStore
-    @Query(sort: \TaskItem.taskId) private var allTasks: [TaskItem]
 
     private var topTasks: [TaskItem] {
-        let sorted = allTasks.sorted { $0.priorityScore > $1.priorityScore }
-        return Array(sorted.prefix(5))
+        taskStore.topTasks(limit: 5)
     }
 
     var body: some View {

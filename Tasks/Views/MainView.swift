@@ -13,7 +13,7 @@ struct MainView: View {
         NavigationSplitView {
             List(selection: $selectedTask) {
                 Section("Tareas") {
-                    ForEach(taskStore.tasks) { task in
+                    ForEach(taskStore.filteredTasks) { task in
                         TaskRowView(task: task, taskStore: taskStore)
                             .tag(task)
                     }

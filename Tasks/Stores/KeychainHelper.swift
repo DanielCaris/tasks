@@ -25,4 +25,12 @@ enum KeychainHelper {
             suite.removeObject(forKey: "jira_url")
         }
     }
+
+    static func saveStatusFilters(_ filters: [String]) {
+        suite.set(filters, forKey: prefix + "status_filters")
+    }
+
+    static func loadStatusFilters() -> [String] {
+        suite.stringArray(forKey: prefix + "status_filters") ?? []
+    }
 }

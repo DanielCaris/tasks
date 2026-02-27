@@ -37,6 +37,8 @@ struct SettingsView: View {
     @State private var isTesting = false
     @State private var testMessage: String?
     @State private var testSuccess: Bool?
+    @State private var selectedStatusFilters: Set<String> = []
+    @State private var newStatusInput = ""
 
     var body: some View {
         Form {
@@ -74,6 +76,57 @@ struct SettingsView: View {
                 Text("Jira")
             } footer: {
                 Text("Genera un API token en id.atlassian.com → Seguridad → Tokens de API. Usa el mismo email con el que accedes a Jira.")
+            }
+
+            Section {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Solo se mostrarán tareas con estos status. Vacío = mostrar todas.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    FlowLayout(spacing: 6) {
+                        ForEach(Array(selectedStatusFilters).sorted(), id: \.self) { status in
+                            StatusPill(label: status) {
+                                selectedStatusFilters.remove(status)
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        Menu {
+                            ForEach(availableStatusesToAdd, id: \.self) { status in
+                                Button(status) {
+                                    selectedStatusFilters.insert(status)
+                                }
+                            }
+                            if availableStatusesToAdd.isEmpty && !taskStore.knownStatuses.isEmpty {
+                                Text("Todos agregados")
+                                    .disabled(true)
+                            }
+                        } label: {
+                            Label("Agregar status", systemImage: "plus.circle")
+                        }
+                        .disabled(availableStatusesToAdd.isEmpty && newStatusInput.trimmingCharacters(in: .whitespaces).isEmpty)
+
+                        TextField("O escribe uno nuevo", text: $newStatusInput)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { addCustomStatus() }
+
+                        Button("Agregar") {
+                            addCustomStatus()
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(newStatusInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                }
+                .padding(.vertical, 4)
+            } header: {
+                Text("Filtrar por status")
+            } footer: {
+                if !taskStore.knownStatuses.isEmpty {
+                    Text("Status descubiertos: \(taskStore.knownStatuses.joined(separator: ", "))")
+                        .font(.caption2)
+                }
             }
 
             Section {
@@ -117,15 +170,27 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 400, height: 320)
+        .frame(width: 440, height: 460)
         .onAppear {
             jiraURL = KeychainHelper.load(key: "jira_url") ?? ""
             jiraEmail = KeychainHelper.load(key: "jira_email") ?? ""
             jiraToken = KeychainHelper.load(key: "jira_api_token") ?? ""
             jqlPreset = JQLPreset.from(jql: jql)
+            selectedStatusFilters = taskStore.selectedStatusFilters
             testMessage = nil
             testSuccess = nil
         }
+    }
+
+    private var availableStatusesToAdd: [String] {
+        taskStore.knownStatuses.filter { !selectedStatusFilters.contains($0) }
+    }
+
+    private func addCustomStatus() {
+        let trimmed = newStatusInput.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+        selectedStatusFilters.insert(trimmed)
+        newStatusInput = ""
     }
 
     private func testConnection() {
@@ -166,6 +231,7 @@ struct SettingsView: View {
         KeychainHelper.save(key: "jira_url", value: url)
         KeychainHelper.save(key: "jira_email", value: email)
         KeychainHelper.save(key: "jira_api_token", value: jiraToken)
+        taskStore.setStatusFilters(selectedStatusFilters)
 
         taskStore.setProvider(JiraProvider(
             baseURL: url,
