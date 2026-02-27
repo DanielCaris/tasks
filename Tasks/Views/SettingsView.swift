@@ -9,7 +9,6 @@ struct SettingsView: View {
     @State private var jiraToken = ""
     @State private var jql = "assignee = currentUser() ORDER BY updated DESC"
     @State private var jqlPreset: JQLPreset = .misTareas
-    @State private var hasChanges = false
 
     private enum JQLPreset: String, CaseIterable {
         case misTareas = "Mis tareas"
@@ -39,26 +38,57 @@ struct SettingsView: View {
     @State private var testSuccess: Bool?
     @State private var selectedStatusFilters: Set<String> = []
     @State private var newStatusInput = ""
+    @State private var selectedTab = 0
 
     var body: some View {
-        Form {
-            Section {
-                TextField("URL base", text: $jiraURL, prompt: Text("https://tu-empresa.atlassian.net"))
-                    .textContentType(.URL)
-                    .textFieldStyle(.roundedBorder)
-
-                TextField("Email", text: $jiraEmail, prompt: Text("tu@email.com"))
-                    .textContentType(.emailAddress)
-                    .textFieldStyle(.roundedBorder)
-
-                SecureField("API Token", text: $jiraToken, prompt: Text("Token de Atlassian"))
-                    .textFieldStyle(.roundedBorder)
-            } header: {
-                Text("Jira")
-            } footer: {
-                Text("Genera un API token en id.atlassian.com → Seguridad → Tokens de API. Usa el mismo email con el que accedes a Jira.")
+        VStack(spacing: 0) {
+            Picker("", selection: $selectedTab) {
+                Text("Listado").tag(0)
+                Text("Conexión").tag(1)
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
 
+            Group {
+                if selectedTab == 0 {
+                    listadoTab
+                } else {
+                    conexionTab
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .frame(width: 440, height: 500)
+        .toolbar {
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Listo") {
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .onAppear {
+            jiraURL = KeychainHelper.load(key: "jira_url") ?? ""
+            jiraEmail = KeychainHelper.load(key: "jira_email") ?? ""
+            jiraToken = KeychainHelper.load(key: "jira_api_token") ?? ""
+            jql = KeychainHelper.loadJQL() ?? "assignee = currentUser() ORDER BY updated DESC"
+            jqlPreset = JQLPreset.from(jql: jql)
+            selectedStatusFilters = taskStore.selectedStatusFilters
+            testMessage = nil
+            testSuccess = nil
+        }
+        .onChange(of: jql) { _, _ in applyChanges() }
+        .onChange(of: jiraURL) { _, _ in applyChanges() }
+        .onChange(of: jiraEmail) { _, _ in applyChanges() }
+        .onChange(of: jiraToken) { _, _ in applyChanges() }
+        .onChange(of: selectedStatusFilters) { _, _ in applyChanges() }
+    }
+
+    private var listadoTab: some View {
+        Form {
             Section {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Solo se mostrarán tareas con estos status. Vacío = mostrar todas.")
@@ -132,6 +162,28 @@ struct SettingsView: View {
             } header: {
                 Text("Consulta JQL")
             }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var conexionTab: some View {
+        Form {
+            Section {
+                TextField("URL base", text: $jiraURL, prompt: Text("https://tu-empresa.atlassian.net"))
+                    .textContentType(.URL)
+                    .textFieldStyle(.roundedBorder)
+
+                TextField("Email", text: $jiraEmail, prompt: Text("tu@email.com"))
+                    .textContentType(.emailAddress)
+                    .textFieldStyle(.roundedBorder)
+
+                SecureField("API Token", text: $jiraToken, prompt: Text("Token de Atlassian"))
+                    .textFieldStyle(.roundedBorder)
+            } header: {
+                Text("Jira")
+            } footer: {
+                Text("Genera un API token en id.atlassian.com → Seguridad → Tokens de API. Usa el mismo email con el que accedes a Jira.")
+            }
 
             Section {
                 Button {
@@ -158,33 +210,9 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(testSuccess == true ? .green : .red)
                 }
-
-                HStack {
-                    Spacer()
-                    Button("Cancelar", role: .cancel) {
-                        dismiss()
-                    }
-                    Button("Guardar") {
-                        saveAndClose()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(!isValid)
-                    .keyboardShortcut(.defaultAction)
-                }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 460)
-        .onAppear {
-            jiraURL = KeychainHelper.load(key: "jira_url") ?? ""
-            jiraEmail = KeychainHelper.load(key: "jira_email") ?? ""
-            jiraToken = KeychainHelper.load(key: "jira_api_token") ?? ""
-            jql = KeychainHelper.loadJQL() ?? "assignee = currentUser() ORDER BY updated DESC"
-            jqlPreset = JQLPreset.from(jql: jql)
-            selectedStatusFilters = taskStore.selectedStatusFilters
-            testMessage = nil
-            testSuccess = nil
-        }
     }
 
     private var availableStatusesToAdd: [String] {
@@ -229,7 +257,7 @@ struct SettingsView: View {
         !jiraToken.isEmpty
     }
 
-    private func saveAndClose() {
+    private func applyChanges() {
         let url = jiraURL.trimmingCharacters(in: .whitespaces)
         let email = jiraEmail.trimmingCharacters(in: .whitespaces)
 
@@ -239,13 +267,13 @@ struct SettingsView: View {
         KeychainHelper.saveJQL(jql.isEmpty ? "assignee = currentUser() ORDER BY updated DESC" : jql)
         taskStore.setStatusFilters(selectedStatusFilters)
 
-        taskStore.setProvider(JiraProvider(
-            baseURL: url,
-            email: email,
-            apiToken: jiraToken,
-            jql: jql.isEmpty ? "assignee = currentUser() ORDER BY updated DESC" : jql
-        ))
-
-        dismiss()
+        if isValid {
+            taskStore.setProvider(JiraProvider(
+                baseURL: url,
+                email: email,
+                apiToken: jiraToken,
+                jql: jql.isEmpty ? "assignee = currentUser() ORDER BY updated DESC" : jql
+            ))
+        }
     }
 }
