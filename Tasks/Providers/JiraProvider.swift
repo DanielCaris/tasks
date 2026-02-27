@@ -122,6 +122,92 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
+    func getTransitions(externalId: String) async throws -> [TransitionOption] {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(externalId)/transitions") else {
+            throw JiraError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+
+        struct TransitionsResponse: Decodable {
+            let transitions: [JiraTransition]
+        }
+        struct JiraTransition: Decodable {
+            let id: String
+            let name: String
+            let to: JiraTransitionTo
+
+            enum CodingKeys: String, CodingKey { case id, name, to }
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: CodingKeys.self)
+                if let intId = try? c.decode(Int.self, forKey: .id) {
+                    id = String(intId)
+                } else {
+                    id = try c.decode(String.self, forKey: .id)
+                }
+                name = try c.decode(String.self, forKey: .name)
+                to = try c.decode(JiraTransitionTo.self, forKey: .to)
+            }
+        }
+        struct JiraTransitionTo: Decodable {
+            let name: String
+        }
+
+        let decoder = JSONDecoder()
+        let res = try decoder.decode(TransitionsResponse.self, from: data)
+        return res.transitions.map { TransitionOption(id: $0.id, targetStatusName: $0.to.name) }
+    }
+
+    func transitionIssue(externalId: String, transitionId: String) async throws {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(externalId)/transitions") else {
+            throw JiraError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+
+        let body: [String: Any] = ["transition": ["id": transitionId]]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+    }
+
     func createIssue(projectKey: String, title: String, description: String?) async throws -> IssueDTO {
         guard let url = URL(string: "\(baseURL)/rest/api/3/issue") else {
             throw JiraError.invalidURL

@@ -13,6 +13,7 @@ final class TaskStore: ObservableObject {
     @Published var isMiniViewVisible = false
 
     private var provider: (any IssueProviderProtocol)?
+    private var transitionsCache: [String: [TransitionOption]] = [:]
 
     /// Tareas filtradas por los status seleccionados. Si no hay filtros, muestra todas.
     var filteredTasks: [TaskItem] {
@@ -56,6 +57,7 @@ final class TaskStore: ObservableObject {
             let dtos = try await provider.fetchIssues()
             await mergeWithLocalData(dtos: dtos, providerId: type(of: provider).providerId)
             await loadTasks()
+            transitionsCache.removeAll()
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -117,6 +119,42 @@ final class TaskStore: ObservableObject {
                 task.descriptionText = description
             }
             task.lastSyncedAt = Date()
+            try? modelContext.save()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func getTransitions(for task: TaskItem) async -> [TransitionOption] {
+        guard let provider else { return [] }
+        let key = task.taskId
+        if let cached = transitionsCache[key] {
+            return cached
+        }
+        do {
+            let transitions = try await provider.getTransitions(externalId: task.externalId)
+            transitionsCache[key] = transitions
+            return transitions
+        } catch {
+            errorMessage = error.localizedDescription
+            return []
+        }
+    }
+
+    func invalidateTransitionsCache(for task: TaskItem) {
+        transitionsCache.removeValue(forKey: task.taskId)
+    }
+
+    func transitionTask(_ task: TaskItem, transitionId: String, newStatus: String) async {
+        guard let provider else {
+            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            return
+        }
+        do {
+            try await provider.transitionIssue(externalId: task.externalId, transitionId: transitionId)
+            task.status = newStatus
+            task.lastSyncedAt = Date()
+            invalidateTransitionsCache(for: task)
             try? modelContext.save()
         } catch {
             errorMessage = error.localizedDescription

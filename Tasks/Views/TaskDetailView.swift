@@ -12,6 +12,9 @@ struct TaskDetailView: View {
     @State private var editableDescription: String
     @State private var isEditingTitle = false
     @State private var isSavingToJira = false
+    @State private var availableTransitions: [TransitionOption] = []
+    @State private var isLoadingTransitions = false
+    @State private var isTransitioning = false
     @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore) {
@@ -78,10 +81,44 @@ struct TaskDetailView: View {
                 }
             }
 
-            HStack {
-                Label(task.status, systemImage: "circle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            HStack(spacing: 8) {
+                if availableTransitions.isEmpty && !isLoadingTransitions {
+                    Label(task.status, systemImage: "circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if isLoadingTransitions {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text(task.status)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Menu {
+                        ForEach(availableTransitions) { transition in
+                            Button {
+                                performTransition(transition)
+                            } label: {
+                                Text(transition.targetStatusName)
+                            }
+                            .disabled(isTransitioning)
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            if isTransitioning {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "circle.fill")
+                                    .font(.caption2)
+                            }
+                            Text(task.status)
+                                .font(.caption)
+                            Image(systemName: "chevron.down")
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                }
 
                 if let assignee = task.assignee {
                     Text("•")
@@ -89,6 +126,9 @@ struct TaskDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+            .task(id: task.taskId) {
+                await loadTransitions()
             }
 
             if task.providerId == JiraProvider.providerId {
@@ -146,6 +186,22 @@ struct TaskDetailView: View {
                 description: editableDescription != (task.descriptionText ?? "") ? editableDescription : nil
             )
             isSavingToJira = false
+        }
+    }
+
+    private func loadTransitions() async {
+        isLoadingTransitions = true
+        availableTransitions = await taskStore.getTransitions(for: task)
+        isLoadingTransitions = false
+    }
+
+    private func performTransition(_ transition: TransitionOption) {
+        guard transition.targetStatusName != task.status else { return }
+        isTransitioning = true
+        Task {
+            await taskStore.transitionTask(task, transitionId: transition.id, newStatus: transition.targetStatusName)
+            await loadTransitions() // Caché invalidada tras la transición; recargar para el nuevo status
+            isTransitioning = false
         }
     }
 
