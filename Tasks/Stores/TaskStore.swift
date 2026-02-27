@@ -4,6 +4,7 @@ import SwiftData
 @MainActor
 final class TaskStore: ObservableObject {
     private let modelContext: ModelContext
+    private var sortTask: Task<Void, Never>?
 
     @Published var tasks: [TaskItem] = []
     @Published var isLoading = false
@@ -83,7 +84,13 @@ final class TaskStore: ObservableObject {
         task.impact = impact
         task.effort = effort
         try? modelContext.save()
-        sortByPriority()
+
+        sortTask?.cancel()
+        sortTask = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            sortByPriority()
+        }
     }
 
     func topTasks(limit: Int = 5) -> [TaskItem] {

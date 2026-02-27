@@ -3,52 +3,69 @@ import SwiftData
 
 struct TaskRowView: View {
     let task: TaskItem
+    @ObservedObject var taskStore: TaskStore
+
+    @State private var urgency: Int
+    @State private var impact: Int
+    @State private var effort: Int
+
+    init(task: TaskItem, taskStore: TaskStore) {
+        self.task = task
+        self.taskStore = taskStore
+        _urgency = State(initialValue: task.urgency ?? 1)
+        _impact = State(initialValue: task.impact ?? 1)
+        _effort = State(initialValue: task.effort ?? 1)
+    }
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(task.externalId)
                         .font(.caption)
                         .fontWeight(.medium)
                         .foregroundStyle(.secondary)
 
-                    if task.priorityScore > 0 {
-                        Text(String(format: "%.1f", task.priorityScore))
-                            .font(.caption2)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
-                    }
+                    Text(task.title)
+                        .font(.body)
+                        .lineLimit(2)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text(task.title)
-                    .lineLimit(2)
-                    .font(.body)
+                if task.priorityScore > 0 {
+                    Text(String(format: "%.1f", task.priorityScore))
+                        .font(.caption2)
+                        .fontWeight(.semibold)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                }
             }
 
-            Spacer()
+            HStack(spacing: 16) {
+                StepperView(label: "U", icon: "clock.fill", value: $urgency)
+                    .onChange(of: urgency) { _, _ in savePriority() }
 
-            if task.urgency != nil || task.impact != nil || task.effort != nil {
-                HStack(spacing: 4) {
-                    if let u = task.urgency {
-                        Label("\(u)", systemImage: "bolt.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.orange)
-                    }
-                    if let i = task.impact {
-                        Label("\(i)", systemImage: "star.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.yellow)
-                    }
-                    if let e = task.effort {
-                        Label("\(e)", systemImage: "clock.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.blue)
-                    }
-                }
+                StepperView(label: "I", icon: "bolt.fill", value: $impact)
+                    .onChange(of: impact) { _, _ in savePriority() }
+
+                StepperView(label: "E", icon: "hammer.fill", value: $effort)
+                    .onChange(of: effort) { _, _ in savePriority() }
             }
         }
         .padding(.vertical, 6)
+        .onChange(of: task.urgency) { _, newValue in
+            if let v = newValue { urgency = v }
+        }
+        .onChange(of: task.impact) { _, newValue in
+            if let v = newValue { impact = v }
+        }
+        .onChange(of: task.effort) { _, newValue in
+            if let v = newValue { effort = v }
+        }
+    }
+
+    private func savePriority() {
+        taskStore.updatePriority(task: task, urgency: urgency, impact: impact, effort: effort)
     }
 }

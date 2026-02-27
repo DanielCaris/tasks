@@ -11,16 +11,19 @@ struct MainView: View {
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedTask) {
-                ForEach(taskStore.tasks) { task in
-                    TaskRowView(task: task)
-                        .tag(task)
+                Section("Tareas") {
+                    ForEach(taskStore.tasks) { task in
+                        TaskRowView(task: task, taskStore: taskStore)
+                            .tag(task)
+                    }
                 }
             }
             .listStyle(.sidebar)
-            .navigationSplitViewColumnWidth(min: 200, ideal: 260)
+            .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
             if let task = selectedTask {
                 TaskDetailView(task: task, taskStore: taskStore)
+                    .id(task.taskId)
             } else {
                 ContentUnavailableView(
                     "Selecciona una tarea",
