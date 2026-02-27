@@ -1331,12 +1331,12 @@
               "type": "frame",
               "id": "x7TxG",
               "name": "innerOpt",
-              "fill": "#FFEBEE",
+              "fill": "#F2F2F7",
               "cornerRadius": 20,
               "stroke": {
                 "align": "inside",
                 "thickness": 1,
-                "fill": "#FF3B30"
+                "fill": "#D1D1D6"
               },
               "padding": [
                 2,
@@ -1361,8 +1361,8 @@
                     "fill": "transparent"
                   },
                   "padding": [
-                    3,
-                    5
+                    4,
+                    6
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -1371,11 +1371,11 @@
                       "type": "icon_font",
                       "id": "bsvbl",
                       "name": "iconMinusOpt",
-                      "width": 10,
-                      "height": 10,
+                      "width": 14,
+                      "height": 14,
                       "iconFontName": "minus",
                       "iconFontFamily": "lucide",
-                      "fill": "#FF3B30"
+                      "fill": "#1D1D1F"
                     }
                   ]
                 },
@@ -1394,7 +1394,7 @@
                       "type": "text",
                       "id": "l2Nmi",
                       "name": "valueOpt",
-                      "fill": "#FF3B30",
+                      "fill": "#3A3A3C",
                       "content": "$urgency",
                       "fontFamily": "Inter",
                       "fontSize": 12,
@@ -1419,8 +1419,8 @@
                     "fill": "transparent"
                   },
                   "padding": [
-                    3,
-                    5
+                    4,
+                    6
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -1429,11 +1429,11 @@
                       "type": "icon_font",
                       "id": "WMQDX",
                       "name": "iconPlusOpt",
-                      "width": 10,
-                      "height": 10,
+                      "width": 14,
+                      "height": 14,
                       "iconFontName": "plus",
                       "iconFontFamily": "lucide",
-                      "fill": "#FF3B30"
+                      "fill": "#1D1D1F"
                     }
                   ]
                 }
@@ -1470,12 +1470,12 @@
               "type": "frame",
               "id": "m97c9",
               "name": "innerOrig",
-              "fill": "#E8F4FD",
+              "fill": "#F2F2F7",
               "cornerRadius": 20,
               "stroke": {
                 "align": "inside",
                 "thickness": 1,
-                "fill": "#007AFF"
+                "fill": "#D1D1D6"
               },
               "padding": [
                 2,
@@ -1500,8 +1500,8 @@
                     "fill": "transparent"
                   },
                   "padding": [
-                    3,
-                    5
+                    4,
+                    6
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -1510,11 +1510,11 @@
                       "type": "icon_font",
                       "id": "HFLS1",
                       "name": "iconMinusOrig",
-                      "width": 10,
-                      "height": 10,
+                      "width": 14,
+                      "height": 14,
                       "iconFontName": "minus",
                       "iconFontFamily": "lucide",
-                      "fill": "#007AFF"
+                      "fill": "#1D1D1F"
                     }
                   ]
                 },
@@ -1533,7 +1533,7 @@
                       "type": "text",
                       "id": "em4rh",
                       "name": "valueOrig",
-                      "fill": "#007AFF",
+                      "fill": "#3A3A3C",
                       "content": "$impact",
                       "fontFamily": "Inter",
                       "fontSize": 12,
@@ -1558,8 +1558,8 @@
                     "fill": "transparent"
                   },
                   "padding": [
-                    3,
-                    5
+                    4,
+                    6
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -1568,11 +1568,11 @@
                       "type": "icon_font",
                       "id": "s87sR",
                       "name": "iconPlusOrig",
-                      "width": 10,
-                      "height": 10,
+                      "width": 14,
+                      "height": 14,
                       "iconFontName": "plus",
                       "iconFontFamily": "lucide",
-                      "fill": "#007AFF"
+                      "fill": "#1D1D1F"
                     }
                   ]
                 }
@@ -1614,7 +1614,7 @@
               "stroke": {
                 "align": "inside",
                 "thickness": 1,
-                "fill": "#8E8E93"
+                "fill": "#D1D1D6"
               },
               "padding": [
                 2,
@@ -1639,8 +1639,8 @@
                     "fill": "transparent"
                   },
                   "padding": [
-                    3,
-                    5
+                    4,
+                    6
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -1649,11 +1649,11 @@
                       "type": "icon_font",
                       "id": "i8HYI",
                       "name": "iconMinusReal",
-                      "width": 10,
-                      "height": 10,
+                      "width": 14,
+                      "height": 14,
                       "iconFontName": "minus",
                       "iconFontFamily": "lucide",
-                      "fill": "#8E8E93"
+                      "fill": "#1D1D1F"
                     }
                   ]
                 },
@@ -1672,7 +1672,7 @@
                       "type": "text",
                       "id": "MXp06",
                       "name": "valueReal",
-                      "fill": "#8E8E93",
+                      "fill": "#3A3A3C",
                       "content": "$effort",
                       "fontFamily": "Inter",
                       "fontSize": 12,
@@ -1697,8 +1697,8 @@
                     "fill": "transparent"
                   },
                   "padding": [
-                    3,
-                    5
+                    4,
+                    6
                   ],
                   "justifyContent": "center",
                   "alignItems": "center",
@@ -1707,11 +1707,11 @@
                       "type": "icon_font",
                       "id": "Xywpd",
                       "name": "iconPlusReal",
-                      "width": 10,
-                      "height": 10,
+                      "width": 14,
+                      "height": 14,
                       "iconFontName": "plus",
                       "iconFontFamily": "lucide",
-                      "fill": "#8E8E93"
+                      "fill": "#1D1D1F"
                     }
                   ]
                 }
