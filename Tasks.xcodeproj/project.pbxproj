@@ -25,6 +25,8 @@
 		TASK016 /* CreateTaskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK116 /* CreateTaskView.swift */; };
 		TASK017 /* FlowLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK117 /* FlowLayout.swift */; };
 		TASK018 /* StatusPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK118 /* StatusPill.swift */; };
+		TASK019 /* ADFToHTML.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK119 /* ADFToHTML.swift */; };
+		TASK020 /* RichHTMLView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK120 /* RichHTMLView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -47,6 +49,8 @@
 		TASK116 /* CreateTaskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateTaskView.swift; sourceTree = "<group>"; };
 		TASK117 /* FlowLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowLayout.swift; sourceTree = "<group>"; };
 		TASK118 /* StatusPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPill.swift; sourceTree = "<group>"; };
+		TASK119 /* ADFToHTML.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ADFToHTML.swift; sourceTree = "<group>"; };
+		TASK120 /* RichHTMLView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichHTMLView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +79,7 @@
 				TASK303 /* Models */,
 				TASK304 /* Providers */,
 				TASK305 /* Stores */,
+				TASK309 /* Utils */,
 				TASK306 /* Views */,
 				TASK102 /* Assets.xcassets */,
 				TASK307 /* Preview Content */,
@@ -108,6 +113,14 @@
 			path = Providers;
 			sourceTree = "<group>";
 		};
+		TASK309 /* Utils */ = {
+			isa = PBXGroup;
+			children = (
+				TASK119 /* ADFToHTML.swift */,
+			);
+			path = Utils;
+			sourceTree = "<group>";
+		};
 		TASK305 /* Stores */ = {
 			isa = PBXGroup;
 			children = (
@@ -137,6 +150,7 @@
 				TASK115 /* StepperView.swift */,
 				TASK117 /* FlowLayout.swift */,
 				TASK118 /* StatusPill.swift */,
+				TASK120 /* RichHTMLView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -228,6 +242,8 @@
 				TASK016 /* CreateTaskView.swift in Sources */,
 				TASK017 /* FlowLayout.swift in Sources */,
 				TASK018 /* StatusPill.swift in Sources */,
+				TASK019 /* ADFToHTML.swift in Sources */,
+				TASK020 /* RichHTMLView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

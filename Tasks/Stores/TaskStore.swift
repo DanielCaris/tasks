@@ -75,6 +75,7 @@ final class TaskStore: ObservableObject {
                 existing.status = dto.status
                 existing.assignee = dto.assignee
                 existing.descriptionText = dto.description
+                existing.descriptionHTML = dto.descriptionHTML
                 existing.url = dto.url
                 existing.priority = dto.priority
                 existing.lastSyncedAt = Date()
@@ -86,6 +87,7 @@ final class TaskStore: ObservableObject {
                     status: dto.status,
                     assignee: dto.assignee,
                     description: dto.description,
+                    descriptionHTML: dto.descriptionHTML,
                     url: dto.url,
                     priority: dto.priority
                 )
@@ -117,6 +119,7 @@ final class TaskStore: ObservableObject {
             }
             if let description {
                 task.descriptionText = description
+                task.descriptionHTML = nil  // Tras edición, hasta próxima sync tendremos HTML fresco
             }
             task.lastSyncedAt = Date()
             try? modelContext.save()

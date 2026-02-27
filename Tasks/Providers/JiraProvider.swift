@@ -295,13 +295,20 @@ final class JiraProvider: IssueProviderProtocol {
         let issue = try decoder.decode(JiraIssue.self, from: data)
         let assigneeName = issue.fields.assignee?.displayName
         let browseURL = URL(string: "\(baseURL)/browse/\(issue.key)")
-        let descriptionText = issue.fields.description?.plainText
+        let desc = issue.fields.description
+        let descriptionText = desc?.plainText
+        let attachmentMap = (issue.fields.attachment ?? []).compactMap { a -> (String, String)? in
+            guard let fn = a.filename, !fn.isEmpty else { return nil }
+            return (fn, a.id)
+        }
+        let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: Dictionary(uniqueKeysWithValues: attachmentMap)) }
         return IssueDTO(
             externalId: issue.key,
             title: issue.fields.summary,
             status: issue.fields.status.name,
             assignee: assigneeName,
             description: descriptionText?.isEmpty == false ? descriptionText : nil,
+            descriptionHTML: descriptionHTML?.isEmpty == false ? descriptionHTML : nil,
             url: browseURL,
             priority: issue.fields.priority?.name,
             createdAt: issue.fields.created,
@@ -331,7 +338,7 @@ final class JiraProvider: IssueProviderProtocol {
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "100"),
-            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated")
+            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment")
         ]
         return components?.url
     }
@@ -387,13 +394,20 @@ final class JiraProvider: IssueProviderProtocol {
             let url = URL(string: "\(baseURL)/browse/\(issue.key)")
             let createdAt = issue.fields.created
             let updatedAt = issue.fields.updated
-            let descriptionText = issue.fields.description?.plainText
+            let desc = issue.fields.description
+            let descriptionText = desc?.plainText
+            let attachmentMap = (issue.fields.attachment ?? []).compactMap { a -> (String, String)? in
+                guard let fn = a.filename, !fn.isEmpty else { return nil }
+                return (fn, a.id)
+            }
+            let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: Dictionary(uniqueKeysWithValues: attachmentMap)) }
             return IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
                 status: issue.fields.status.name,
                 assignee: assigneeName,
                 description: descriptionText?.isEmpty == false ? descriptionText : nil,
+                descriptionHTML: descriptionHTML?.isEmpty == false ? descriptionHTML : nil,
                 url: url,
                 priority: issue.fields.priority?.name,
                 createdAt: createdAt,
@@ -426,9 +440,26 @@ private struct JiraIssueFields: Decodable {
     let assignee: JiraUser?
     let created: Date?
     let updated: Date?
+    let attachment: [JiraAttachment]?
 }
 
-/// Descripción en ADF (Atlassian Document Format). Se decodifica como JSON genérico para extraer texto.
+private struct JiraAttachment: Decodable {
+    let id: String
+    let filename: String?
+
+    enum CodingKeys: String, CodingKey { case id, filename }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let intId = try? c.decode(Int.self, forKey: .id) {
+            id = String(intId)
+        } else {
+            id = try c.decode(String.self, forKey: .id)
+        }
+        filename = try? c.decode(String.self, forKey: .filename)
+    }
+}
+
+/// Descripción en ADF (Atlassian Document Format). Se decodifica como JSON genérico.
 private struct JiraDescription: Decodable {
     let raw: Any?
 
@@ -441,6 +472,10 @@ private struct JiraDescription: Decodable {
         guard let dict = raw as? [String: Any],
               let content = dict["content"] as? [[String: Any]] else { return "" }
         return content.compactMap { extractText(from: $0) }.joined(separator: "\n")
+    }
+
+    var adfDict: [String: Any]? {
+        raw as? [String: Any]
     }
 
     private func extractText(from node: [String: Any]) -> String? {

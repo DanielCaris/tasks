@@ -14,6 +14,7 @@ struct IssueDTO: Identifiable {
     let status: String
     let assignee: String?
     let description: String?
+    let descriptionHTML: String?  // Contenido enriquecido desde Jira ADF (imágenes, links, etc.)
     let url: URL?
     let priority: String?
     let createdAt: Date?
@@ -27,6 +28,7 @@ struct IssueDTO: Identifiable {
         status: String,
         assignee: String? = nil,
         description: String? = nil,
+        descriptionHTML: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
         createdAt: Date? = nil,
@@ -37,6 +39,7 @@ struct IssueDTO: Identifiable {
         self.status = status
         self.assignee = assignee
         self.description = description
+        self.descriptionHTML = descriptionHTML
         self.url = url
         self.priority = priority
         self.createdAt = createdAt

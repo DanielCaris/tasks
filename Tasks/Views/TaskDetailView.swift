@@ -11,6 +11,7 @@ struct TaskDetailView: View {
     @State private var editableTitle: String
     @State private var editableDescription: String
     @State private var isEditingTitle = false
+    @State private var isEditingDescription = false
     @State private var isSavingToJira = false
     @State private var availableTransitions: [TransitionOption] = []
     @State private var isLoadingTransitions = false
@@ -28,24 +29,35 @@ struct TaskDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                headerSection
+        GeometryReader { geo in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    prioritySection
 
-                prioritySection
+                    headerSection(availableHeight: geo.size.height)
 
-                if let url = task.url {
-                    Link(destination: url) {
-                        Label("Abrir en Jira", systemImage: "arrow.up.right.square")
+                    if let url = task.url {
+                        Link(destination: url) {
+                            Label("Abrir en Jira", systemImage: "arrow.up.right.square")
+                        }
                     }
                 }
+                .padding(24)
             }
-            .padding(24)
+            .onChange(of: task.urgency) { _, newValue in
+                if let v = newValue { urgency = v }
+            }
+            .onChange(of: task.impact) { _, newValue in
+                if let v = newValue { impact = v }
+            }
+            .onChange(of: task.effort) { _, newValue in
+                if let v = newValue { effort = v }
+            }
         }
         .background(.thinMaterial.opacity(0.5))
     }
 
-    private var headerSection: some View {
+    private func headerSection(availableHeight: CGFloat = 600) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(task.externalId)
                 .font(.headline)
@@ -133,34 +145,83 @@ struct TaskDetailView: View {
 
             if task.providerId == JiraProvider.providerId {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Descripción")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-
-                    TextEditor(text: $editableDescription)
-                        .font(.body)
-                        .frame(minHeight: 80, maxHeight: 200)
-                        .scrollContentBackground(.hidden)
-                        .padding(8)
-                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-
-                    Button {
-                        saveToJira()
-                    } label: {
-                        Label {
-                            Text("Guardar en Jira")
-                        } icon: {
-                            if isSavingToJira {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.up.circle.fill")
+                    HStack {
+                        Text("Descripción")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if !isEditingDescription, (task.descriptionHTML != nil || (task.descriptionText ?? "").isEmpty == false) {
+                            Button {
+                                isEditingDescription = true
+                            } label: {
+                                Label("Editar", systemImage: "pencil")
+                                    .font(.caption)
                             }
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isSavingToJira || !hasEdits)
+
+                    if isEditingDescription {
+                        TextEditor(text: $editableDescription)
+                            .font(.body)
+                            .frame(minHeight: 200)
+                            .scrollContentBackground(.hidden)
+                            .padding(8)
+                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+
+                        HStack(spacing: 8) {
+                            Button {
+                                saveToJira()
+                            } label: {
+                                Label {
+                                    Text("Guardar en Jira")
+                                } icon: {
+                                    if isSavingToJira {
+                                        ProgressView()
+                                            .controlSize(.small)
+                                    } else {
+                                        Image(systemName: "arrow.up.circle.fill")
+                                    }
+                                }
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isSavingToJira || !hasEdits)
+
+                            Button("Cancelar") {
+                                isEditingDescription = false
+                                editableDescription = task.descriptionText ?? ""
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    } else if let html = task.descriptionHTML, !html.isEmpty {
+                        RichHTMLView(
+                            html: html,
+                            baseURL: KeychainHelper.load(key: "jira_url") ?? "",
+                            jiraEmail: KeychainHelper.load(key: "jira_email"),
+                            jiraToken: KeychainHelper.load(key: "jira_api_token")
+                        )
+                        .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280))
+                        .background(.regularMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                        .overlay(alignment: .topLeading) {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(.quaternary, lineWidth: 1)
+                        }
+                    } else {
+                        Text(task.descriptionText ?? "Sin descripción")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(minHeight: 200)
+                            .padding(8)
+                            .background(.regularMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+
+                        Button {
+                            isEditingDescription = true
+                        } label: {
+                            Label("Editar descripción", systemImage: "pencil")
+                                .font(.caption)
+                        }
+                    }
                 }
             }
         }
@@ -206,39 +267,25 @@ struct TaskDetailView: View {
     }
 
     private var prioritySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Priorización")
-                .font(.headline)
+        HStack(spacing: 16) {
+            Spacer()
 
-            VStack(alignment: .leading, spacing: 12) {
-                prioritySlider(label: "Urgencia", value: $urgency, icon: "bolt.fill")
-                prioritySlider(label: "Impacto", value: $impact, icon: "star.fill")
-                prioritySlider(label: "Esfuerzo", value: $effort, icon: "clock.fill")
-            }
-            .padding()
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+            StepperView(label: "U", icon: "clock.fill", value: $urgency)
+                .onChange(of: urgency) { _, _ in savePriority() }
+
+            StepperView(label: "I", icon: "bolt.fill", value: $impact)
+                .onChange(of: impact) { _, _ in savePriority() }
+
+            StepperView(label: "E", icon: "hammer.fill", value: $effort)
+                .onChange(of: effort) { _, _ in savePriority() }
 
             Text("Score: \(String(format: "%.1f", (Double(urgency) * Double(impact)) / Double(max(effort, 1))))")
-                .font(.subheadline)
+                .font(.caption)
                 .foregroundStyle(.secondary)
+                .padding(.leading, 4)
         }
-        .onChange(of: urgency) { _, _ in savePriority() }
-        .onChange(of: impact) { _, _ in savePriority() }
-        .onChange(of: effort) { _, _ in savePriority() }
-    }
-
-    private func prioritySlider(label: String, value: Binding<Int>, icon: String) -> some View {
-        HStack {
-            Label(label, systemImage: icon)
-                .frame(width: 80, alignment: .leading)
-            Slider(value: Binding(
-                get: { Double(value.wrappedValue) },
-                set: { value.wrappedValue = Int($0.rounded()) }
-            ), in: 1...5, step: 1)
-            Text("\(value.wrappedValue)")
-                .frame(width: 20)
-                .font(.caption.monospacedDigit())
-        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
     }
 
     private func savePriority() {

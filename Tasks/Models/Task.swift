@@ -12,6 +12,7 @@ final class TaskItem {
     var status: String
     var assignee: String?
     var descriptionText: String?
+    var descriptionHTML: String?  // Contenido enriquecido (imágenes, links, formato) desde Jira ADF
     var urlString: String?
     var priority: String?
     var urgency: Int?
@@ -26,6 +27,7 @@ final class TaskItem {
         status: String,
         assignee: String? = nil,
         description: String? = nil,
+        descriptionHTML: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
         urgency: Int? = nil,
@@ -39,6 +41,7 @@ final class TaskItem {
         self.status = status
         self.assignee = assignee
         self.descriptionText = description
+        self.descriptionHTML = descriptionHTML
         self.urlString = url?.absoluteString
         self.priority = priority
         self.urgency = urgency
