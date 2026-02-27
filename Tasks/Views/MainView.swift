@@ -7,6 +7,7 @@ struct MainView: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var selectedTask: TaskItem?
     @State private var showingSettings = false
+    @State private var showingCreateTask = false
 
     var body: some View {
         NavigationSplitView {
@@ -35,6 +36,13 @@ struct MainView: View {
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button {
+                    showingCreateTask = true
+                } label: {
+                    Label("Nueva tarea", systemImage: "plus")
+                }
+                .disabled(taskStore.providerId != JiraProvider.providerId)
+
+                Button {
                     Task { await taskStore.fetchFromProvider() }
                 } label: {
                     Label("Actualizar", systemImage: "arrow.clockwise")
@@ -59,6 +67,9 @@ struct MainView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(taskStore: taskStore)
+        }
+        .sheet(isPresented: $showingCreateTask) {
+            CreateTaskView(taskStore: taskStore)
         }
         .overlay(alignment: .bottomLeading) {
             if let message = taskStore.errorMessage {

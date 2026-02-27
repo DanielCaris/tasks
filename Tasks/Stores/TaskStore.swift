@@ -13,6 +13,10 @@ final class TaskStore: ObservableObject {
 
     private var provider: (any IssueProviderProtocol)?
 
+    var providerId: String? {
+        provider.map { type(of: $0).providerId }
+    }
+
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
     }
@@ -98,6 +102,33 @@ final class TaskStore: ObservableObject {
             try? modelContext.save()
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+    func fetchProjects() async -> [ProjectOption] {
+        guard let provider else { return [] }
+        do {
+            return try await provider.fetchProjects()
+        } catch {
+            errorMessage = error.localizedDescription
+            return []
+        }
+    }
+
+    func createTaskInProvider(projectKey: String, title: String, description: String?) async -> TaskItem? {
+        guard let provider else {
+            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            return nil
+        }
+        do {
+            let dto = try await provider.createIssue(projectKey: projectKey, title: title, description: description)
+            let providerId = type(of: provider).providerId
+            await mergeWithLocalData(dtos: [dto], providerId: providerId)
+            await loadTasks()
+            return tasks.first { $0.externalId == dto.externalId }
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
         }
     }
 

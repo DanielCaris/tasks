@@ -1,5 +1,12 @@
 import Foundation
 
+/// Opción de proyecto para crear issues (clave + nombre).
+struct ProjectOption: Identifiable {
+    let key: String
+    let name: String
+    var id: String { key }
+}
+
 /// DTO genérico para mapear issues desde cualquier provider (Jira, Linear, etc.)
 struct IssueDTO: Identifiable {
     let externalId: String

@@ -22,6 +22,7 @@
 		TASK013 /* MiniView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK113 /* MiniView.swift */; };
 		TASK014 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK114 /* SettingsView.swift */; };
 		TASK015 /* StepperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK115 /* StepperView.swift */; };
+		TASK016 /* CreateTaskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK116 /* CreateTaskView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 		TASK113 /* MiniView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniView.swift; sourceTree = "<group>"; };
 		TASK114 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		TASK115 /* StepperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepperView.swift; sourceTree = "<group>"; };
+		TASK116 /* CreateTaskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateTaskView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -120,6 +122,7 @@
 				TASK112 /* TaskDetailView.swift */,
 				TASK113 /* MiniView.swift */,
 				TASK114 /* SettingsView.swift */,
+				TASK116 /* CreateTaskView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -216,6 +219,7 @@
 				TASK013 /* MiniView.swift in Sources */,
 				TASK014 /* SettingsView.swift in Sources */,
 				TASK015 /* StepperView.swift in Sources */,
+				TASK016 /* CreateTaskView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
