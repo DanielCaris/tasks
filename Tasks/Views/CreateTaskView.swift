@@ -20,22 +20,23 @@ struct CreateTaskView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Proyecto", selection: $selectedProjectKey) {
-                    Text("Selecciona un proyecto").tag(nil as String?)
-                    ForEach(projects) { project in
-                        Text("\(project.name) (\(project.key))")
-                            .tag(project.key as String?)
-                    }
-                }
-                .disabled(isLoadingProjects || projects.isEmpty)
-
                 if isLoadingProjects {
                     HStack {
+                        Text("Proyecto")
+                        Spacer()
                         ProgressView()
-                            .scaleEffect(0.8)
+                            .controlSize(.small)
                         Text("Cargando proyectos…")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Picker("Proyecto", selection: $selectedProjectKey) {
+                        Text("Selecciona un proyecto").tag(nil as String?)
+                        ForEach(projects) { project in
+                            Text("\(project.name) (\(project.key))")
+                                .tag(project.key as String?)
+                        }
                     }
                 }
 
