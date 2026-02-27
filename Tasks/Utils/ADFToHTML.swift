@@ -160,8 +160,8 @@ enum ADFToHTML {
         let mediaId = attrs["id"] as? String ?? ""
         let mediaType = attrs["type"] as? String ?? "file"
         let alt = attrs["alt"] as? String ?? "imagen"
-        // Jira ADF media usa UUID; el API de attachments espera id numérico. Mapeamos por filename (alt).
-        let attachmentId = attachmentMap[alt] ?? mediaId
+        // Jira ADF media usa UUID; el API espera id numérico. Mapeamos por filename (alt), case-insensitive.
+        let attachmentId = attachmentMap[alt.lowercased()] ?? attachmentMap[alt] ?? mediaId
         let width = attrs["width"] as? Int ?? 400
         let height = attrs["height"] as? Int ?? 300
 

@@ -13,6 +13,7 @@ final class TaskItem {
     var assignee: String?
     var descriptionText: String?
     var descriptionHTML: String?  // Contenido enriquecido (imágenes, links, formato) desde Jira ADF
+    var parentExternalId: String?  // Si es subtarea, clave del issue padre
     var urlString: String?
     var priority: String?
     var urgency: Int?
@@ -28,6 +29,7 @@ final class TaskItem {
         assignee: String? = nil,
         description: String? = nil,
         descriptionHTML: String? = nil,
+        parentExternalId: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
         urgency: Int? = nil,
@@ -42,6 +44,7 @@ final class TaskItem {
         self.assignee = assignee
         self.descriptionText = description
         self.descriptionHTML = descriptionHTML
+        self.parentExternalId = parentExternalId
         self.urlString = url?.absoluteString
         self.priority = priority
         self.urgency = urgency

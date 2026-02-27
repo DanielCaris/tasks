@@ -16,6 +16,7 @@ struct TaskDetailView: View {
     @State private var availableTransitions: [TransitionOption] = []
     @State private var isLoadingTransitions = false
     @State private var isTransitioning = false
+    @State private var isLoadingSubtasks = false
     @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore) {
@@ -32,14 +33,10 @@ struct TaskDetailView: View {
         GeometryReader { geo in
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    prioritySection
-
                     headerSection(availableHeight: geo.size.height)
 
-                    if let url = task.url {
-                        Link(destination: url) {
-                            Label("Abrir en Jira", systemImage: "arrow.up.right.square")
-                        }
+                    if task.providerId == JiraProvider.providerId {
+                        subtasksSection
                     }
                 }
                 .padding(24)
@@ -58,10 +55,25 @@ struct TaskDetailView: View {
     }
 
     private func headerSection(availableHeight: CGFloat = 600) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(task.externalId)
-                .font(.headline)
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(task.externalId)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                if let url = task.url {
+                    Link(destination: url) {
+                        Label("Abrir en Jira", systemImage: "arrow.up.right.square")
+                            .font(.caption)
+                    }
+                }
+                Spacer()
+                Text(String(format: "%.1f", (Double(urgency) * Double(impact)) / Double(max(effort, 1))))
+                    .font(.caption2)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.quaternary, in: Capsule())
+            }
 
             Group {
                 if isEditingTitle {
@@ -130,6 +142,8 @@ struct TaskDetailView: View {
                         }
                         .foregroundStyle(.secondary)
                     }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
 
                 if let assignee = task.assignee {
@@ -138,7 +152,21 @@ struct TaskDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+
+                Spacer()
+
+                HStack(spacing: 16) {
+                    StepperView(label: "U", icon: "clock.fill", value: $urgency)
+                        .onChange(of: urgency) { _, _ in savePriority() }
+
+                    StepperView(label: "I", icon: "bolt.fill", value: $impact)
+                        .onChange(of: impact) { _, _ in savePriority() }
+
+                    StepperView(label: "E", icon: "hammer.fill", value: $effort)
+                        .onChange(of: effort) { _, _ in savePriority() }
+                }
             }
+            .frame(height: 28)
             .task(id: task.taskId) {
                 await loadTransitions()
             }
@@ -223,6 +251,7 @@ struct TaskDetailView: View {
                         }
                     }
                 }
+                .padding(.top, 16)
             }
         }
         .onChange(of: task.title) { _, newValue in
@@ -266,26 +295,56 @@ struct TaskDetailView: View {
         }
     }
 
-    private var prioritySection: some View {
-        HStack(spacing: 16) {
-            Spacer()
-
-            StepperView(label: "U", icon: "clock.fill", value: $urgency)
-                .onChange(of: urgency) { _, _ in savePriority() }
-
-            StepperView(label: "I", icon: "bolt.fill", value: $impact)
-                .onChange(of: impact) { _, _ in savePriority() }
-
-            StepperView(label: "E", icon: "hammer.fill", value: $effort)
-                .onChange(of: effort) { _, _ in savePriority() }
-
-            Text("Score: \(String(format: "%.1f", (Double(urgency) * Double(impact)) / Double(max(effort, 1))))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.leading, 4)
+    private var subtasksSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Subtareas")
+                    .font(.headline)
+                if isLoadingSubtasks {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+            let subs = taskStore.subtasks(for: task)
+            if subs.isEmpty && !isLoadingSubtasks {
+                Text("Sin subtareas")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(subs) { sub in
+                        HStack(spacing: 8) {
+                            Text(sub.externalId)
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                                .frame(width: 60, alignment: .leading)
+                            Text(sub.title)
+                                .font(.body)
+                                .lineLimit(1)
+                            Spacer()
+                            Text(sub.status)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            if let url = sub.url {
+                                Link(destination: url) {
+                                    Image(systemName: "arrow.up.right.square")
+                                        .font(.caption)
+                                }
+                            }
+                        }
+                        .padding(8)
+                        .background(.regularMaterial.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+            }
         }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .task(id: task.taskId) {
+            guard task.providerId == JiraProvider.providerId else { return }
+            isLoadingSubtasks = true
+            _ = await taskStore.fetchSubtasks(for: task)
+            isLoadingSubtasks = false
+        }
     }
 
     private func savePriority() {

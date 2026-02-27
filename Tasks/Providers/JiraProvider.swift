@@ -52,6 +52,30 @@ final class JiraProvider: IssueProviderProtocol {
         return try parseSearchResponse(data: data)
     }
 
+    /// Obtiene las subtareas de un issue padre.
+    func fetchSubtasks(parentKey: String) async throws -> [IssueDTO] {
+        guard let url = buildSubtasksURL(parentKey: parentKey) else {
+            throw JiraError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+        return try parseSearchResponse(data: data, parentKey: parentKey)
+    }
+
     func fetchProjects() async throws -> [ProjectOption] {
         guard let url = URL(string: "\(baseURL)/rest/api/3/project") else {
             throw JiraError.invalidURL
@@ -297,11 +321,8 @@ final class JiraProvider: IssueProviderProtocol {
         let browseURL = URL(string: "\(baseURL)/browse/\(issue.key)")
         let desc = issue.fields.description
         let descriptionText = desc?.plainText
-        let attachmentMap = (issue.fields.attachment ?? []).compactMap { a -> (String, String)? in
-            guard let fn = a.filename, !fn.isEmpty else { return nil }
-            return (fn, a.id)
-        }
-        let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: Dictionary(uniqueKeysWithValues: attachmentMap)) }
+        let attachmentMap = buildAttachmentMap(attachments: issue.fields.attachment ?? [])
+        let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap) }
         return IssueDTO(
             externalId: issue.key,
             title: issue.fields.summary,
@@ -309,6 +330,7 @@ final class JiraProvider: IssueProviderProtocol {
             assignee: assigneeName,
             description: descriptionText?.isEmpty == false ? descriptionText : nil,
             descriptionHTML: descriptionHTML?.isEmpty == false ? descriptionHTML : nil,
+            parentExternalId: nil,
             url: browseURL,
             priority: issue.fields.priority?.name,
             createdAt: issue.fields.created,
@@ -332,13 +354,32 @@ final class JiraProvider: IssueProviderProtocol {
         ]
     }
 
+    /// Mapa filename (minúsculas) -> attachmentId para resolver imágenes ADF. Sin duplicados.
+    private func buildAttachmentMap(attachments: [JiraAttachment]) -> [String: String] {
+        var map: [String: String] = [:]
+        for a in attachments where a.filename.map({ !$0.isEmpty }) ?? false {
+            let key = (a.filename ?? "").lowercased()
+            if map[key] == nil { map[key] = a.id }
+        }
+        return map
+    }
+
     private func buildSearchURL() -> URL? {
-        // Usar el nuevo endpoint /search/jql (el antiguo /search devuelve 410 Gone)
         var components = URLComponents(string: "\(baseURL)/rest/api/3/search/jql")
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "100"),
             URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment")
+        ]
+        return components?.url
+    }
+
+    private func buildSubtasksURL(parentKey: String) -> URL? {
+        var components = URLComponents(string: "\(baseURL)/rest/api/3/search/jql")
+        components?.queryItems = [
+            URLQueryItem(name: "jql", value: "parent=\(parentKey)"),
+            URLQueryItem(name: "maxResults", value: "50"),
+            URLQueryItem(name: "fields", value: "summary,status,assignee,priority,created,updated")
         ]
         return components?.url
     }
@@ -363,7 +404,7 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
-    private func parseSearchResponse(data: Data) throws -> [IssueDTO] {
+    private func parseSearchResponse(data: Data, parentKey: String? = nil) throws -> [IssueDTO] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -396,11 +437,8 @@ final class JiraProvider: IssueProviderProtocol {
             let updatedAt = issue.fields.updated
             let desc = issue.fields.description
             let descriptionText = desc?.plainText
-            let attachmentMap = (issue.fields.attachment ?? []).compactMap { a -> (String, String)? in
-                guard let fn = a.filename, !fn.isEmpty else { return nil }
-                return (fn, a.id)
-            }
-            let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: Dictionary(uniqueKeysWithValues: attachmentMap)) }
+            let attachmentMap = buildAttachmentMap(attachments: issue.fields.attachment ?? [])
+            let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap) }
             return IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
@@ -408,6 +446,7 @@ final class JiraProvider: IssueProviderProtocol {
                 assignee: assigneeName,
                 description: descriptionText?.isEmpty == false ? descriptionText : nil,
                 descriptionHTML: descriptionHTML?.isEmpty == false ? descriptionHTML : nil,
+                parentExternalId: parentKey,
                 url: url,
                 priority: issue.fields.priority?.name,
                 createdAt: createdAt,

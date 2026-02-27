@@ -15,10 +15,11 @@ final class TaskStore: ObservableObject {
     private var provider: (any IssueProviderProtocol)?
     private var transitionsCache: [String: [TransitionOption]] = [:]
 
-    /// Tareas filtradas por los status seleccionados. Si no hay filtros, muestra todas.
+    /// Tareas filtradas: solo padres (sin parent), y por status si hay filtros.
     var filteredTasks: [TaskItem] {
-        guard !selectedStatusFilters.isEmpty else { return tasks }
-        return tasks.filter { selectedStatusFilters.contains($0.status) }
+        let parents = tasks.filter { $0.parentExternalId == nil }
+        guard !selectedStatusFilters.isEmpty else { return parents }
+        return parents.filter { selectedStatusFilters.contains($0.status) }
     }
 
     /// Status únicos descubiertos en las tareas actuales.
@@ -76,6 +77,7 @@ final class TaskStore: ObservableObject {
                 existing.assignee = dto.assignee
                 existing.descriptionText = dto.description
                 existing.descriptionHTML = dto.descriptionHTML
+                existing.parentExternalId = dto.parentExternalId
                 existing.url = dto.url
                 existing.priority = dto.priority
                 existing.lastSyncedAt = Date()
@@ -88,6 +90,7 @@ final class TaskStore: ObservableObject {
                     assignee: dto.assignee,
                     description: dto.description,
                     descriptionHTML: dto.descriptionHTML,
+                    parentExternalId: dto.parentExternalId,
                     url: dto.url,
                     priority: dto.priority
                 )
@@ -211,5 +214,23 @@ final class TaskStore: ObservableObject {
 
     func toggleMiniView() {
         isMiniViewVisible.toggle()
+    }
+
+    func fetchSubtasks(for task: TaskItem) async -> [TaskItem] {
+        guard let provider = provider as? JiraProvider else { return [] }
+        do {
+            let dtos = try await provider.fetchSubtasks(parentKey: task.externalId)
+            await mergeWithLocalData(dtos: dtos, providerId: JiraProvider.providerId)
+            try? modelContext.save()
+            await loadTasks()
+            return tasks.filter { $0.parentExternalId == task.externalId }
+        } catch {
+            errorMessage = error.localizedDescription
+            return []
+        }
+    }
+
+    func subtasks(for task: TaskItem) -> [TaskItem] {
+        tasks.filter { $0.parentExternalId == task.externalId }
     }
 }

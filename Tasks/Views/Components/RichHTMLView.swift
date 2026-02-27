@@ -59,7 +59,11 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
     private let apiToken: String
 
     init(baseURL: String, email: String, apiToken: String) {
-        self.baseURL = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        var url = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if !url.hasPrefix("http://") && !url.hasPrefix("https://") {
+            url = "https://" + url
+        }
+        self.baseURL = url
         self.email = email
         self.apiToken = apiToken
     }
@@ -74,31 +78,54 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
             urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "ID de media vacío"]))
             return
         }
-        let contentURL = "\(baseURL)/rest/api/3/attachment/content/\(mediaId)"
+        let contentURL = "\(baseURL)/rest/api/3/attachment/content/\(mediaId)?redirect=false"
         guard let downloadURL = URL(string: contentURL) else {
             urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL inválida"]))
             return
         }
         var request = URLRequest(url: downloadURL)
         let credentials = "\(email):\(apiToken)"
-        if let data = credentials.data(using: .utf8) {
-            request.setValue("Basic \(data.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        if let credData = credentials.data(using: .utf8) {
+            request.setValue("Basic \(credData.base64EncodedString())", forHTTPHeaderField: "Authorization")
         }
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
                 urlSchemeTask.didFailWithError(error)
                 return
             }
-            guard let data = data,
-                  let response = response as? HTTPURLResponse,
-                  (200...299).contains(response.statusCode) else {
-                urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "No se pudo cargar la imagen"]))
+            guard let httpResponse = response as? HTTPURLResponse else {
+                urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "Respuesta inválida"]))
                 return
             }
-            let mimeType = response.mimeType ?? "image/png"
-            urlSchemeTask.didReceive(URLResponse(url: url, mimeType: mimeType, expectedContentLength: data.count, textEncodingName: nil))
-            urlSchemeTask.didReceive(data)
-            urlSchemeTask.didFinish()
+            if httpResponse.statusCode == 303, let location = httpResponse.value(forHTTPHeaderField: "Location"), let redirectURL = URL(string: location) {
+                var redirectRequest = URLRequest(url: redirectURL)
+                if let credData = credentials.data(using: .utf8) {
+                    redirectRequest.setValue("Basic \(credData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+                }
+                URLSession.shared.dataTask(with: redirectRequest) { redirectData, redirectResponse, redirectError in
+                    if let redirectError = redirectError {
+                        urlSchemeTask.didFailWithError(redirectError)
+                        return
+                    }
+                    guard let redirectData = redirectData,
+                          let r = redirectResponse as? HTTPURLResponse,
+                          (200...299).contains(r.statusCode) else {
+                        urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "No se pudo cargar la imagen"]))
+                        return
+                    }
+                    let mimeType = r.mimeType ?? "image/png"
+                    urlSchemeTask.didReceive(URLResponse(url: url, mimeType: mimeType, expectedContentLength: redirectData.count, textEncodingName: nil))
+                    urlSchemeTask.didReceive(redirectData)
+                    urlSchemeTask.didFinish()
+                }.resume()
+            } else if (200...299).contains(httpResponse.statusCode), let data = data {
+                let mimeType = httpResponse.mimeType ?? "image/png"
+                urlSchemeTask.didReceive(URLResponse(url: url, mimeType: mimeType, expectedContentLength: data.count, textEncodingName: nil))
+                urlSchemeTask.didReceive(data)
+                urlSchemeTask.didFinish()
+            } else {
+                urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "No se pudo cargar la imagen"]))
+            }
         }.resume()
     }
 
