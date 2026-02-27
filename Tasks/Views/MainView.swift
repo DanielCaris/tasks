@@ -89,6 +89,7 @@ struct MainView: View {
         .onChange(of: taskStore.isMiniViewVisible) { _, visible in
             if visible {
                 openWindow(id: "mini")
+                dismissWindow(id: "main")
             } else {
                 dismissWindow(id: "mini")
             }

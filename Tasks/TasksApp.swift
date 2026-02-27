@@ -3,7 +3,7 @@ import SwiftData
 
 @main
 struct TasksApp: App {
-    var sharedModelContainer: ModelContainer = {
+    private static let sharedModelContainer: ModelContainer = {
         let schema = Schema([TaskItem.self])
         let config = ModelConfiguration(isStoredInMemoryOnly: false)
         do {
@@ -13,18 +13,21 @@ struct TasksApp: App {
         }
     }()
 
+    private static let taskStore = TaskStore(modelContext: sharedModelContainer.mainContext)
+
     var body: some Scene {
         WindowGroup(id: "main") {
             MainView()
-                .modelContainer(sharedModelContainer)
-                .environmentObject(TaskStore(modelContext: sharedModelContainer.mainContext))
+                .modelContainer(Self.sharedModelContainer)
+                .environmentObject(Self.taskStore)
         }
         .windowStyle(.automatic)
         .defaultSize(width: 900, height: 600)
 
         WindowGroup(id: "mini") {
             MiniView()
-                .modelContainer(sharedModelContainer)
+                .modelContainer(Self.sharedModelContainer)
+                .environmentObject(Self.taskStore)
         }
         .windowStyle(.automatic)
         .windowResizability(.contentSize)

@@ -3,6 +3,9 @@ import SwiftData
 
 struct MiniView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
+    @EnvironmentObject private var taskStore: TaskStore
     @Query(sort: \TaskItem.taskId) private var allTasks: [TaskItem]
 
     private var topTasks: [TaskItem] {
@@ -44,5 +47,16 @@ struct MiniView: View {
         }
         .frame(minWidth: 280, minHeight: 180)
         .background(.thinMaterial)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    openWindow(id: "main")
+                    dismissWindow(id: "mini")
+                    taskStore.toggleMiniView()
+                } label: {
+                    Label("Vista completa", systemImage: "arrow.up.left.and.arrow.down.right")
+                }
+            }
+        }
     }
 }
