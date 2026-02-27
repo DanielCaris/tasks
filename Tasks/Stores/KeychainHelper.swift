@@ -1,48 +1,28 @@
 import Foundation
-import Security
 
+/// Almacena credenciales en UserDefaults para evitar los prompts repetidos de Keychain.
+/// Para mayor seguridad en producción, considera volver a Keychain con la app firmada.
 enum KeychainHelper {
-    static let jiraService = "com.tasks.jira"
+    private static let suite = UserDefaults.standard
+    private static let prefix = "com.tasks.jira."
 
-    static func save(key: String, value: String, service: String = jiraService) {
-        guard let data = value.data(using: .utf8) else { return }
-        delete(key: key, service: service)
-
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecValueData as String: data
-        ]
-        SecItemAdd(query as CFDictionary, nil)
-    }
-
-    static func load(key: String, service: String = jiraService) -> String? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key,
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        guard status == errSecSuccess,
-              let data = result as? Data,
-              let string = String(data: data, encoding: .utf8) else {
-            return nil
+    static func save(key: String, value: String, service: String = "jira") {
+        suite.set(value, forKey: prefix + key)
+        // Mantener compatibilidad con clave legacy
+        if key == "jira_url" {
+            suite.set(value, forKey: "jira_url")
         }
-        return string
     }
 
-    static func delete(key: String, service: String = jiraService) {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: key
-        ]
-        SecItemDelete(query as CFDictionary)
+    static func load(key: String, service: String = "jira") -> String? {
+        suite.string(forKey: prefix + key)
+            ?? (key == "jira_url" ? suite.string(forKey: "jira_url") : nil)
+    }
+
+    static func delete(key: String, service: String = "jira") {
+        suite.removeObject(forKey: prefix + key)
+        if key == "jira_url" {
+            suite.removeObject(forKey: "jira_url")
+        }
     }
 }

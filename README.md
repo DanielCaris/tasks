@@ -8,10 +8,23 @@ App nativa macOS para listar tareas desde Jira, priorizarlas por urgencia/impact
 - Xcode 15+
 - Cuenta Jira Cloud con API token
 
+## Desarrollo
+
+```bash
+# Compilar
+./scripts/build.sh
+# o: make build
+
+# Compilar y ejecutar
+./scripts/run.sh
+# o: make run
+```
+
+O abre el proyecto en Xcode: `open Tasks.xcodeproj` y usa ⌘R.
+
 ## Configuración
 
-1. Abre el proyecto en Xcode: `open Tasks.xcodeproj`
-2. Compila y ejecuta (⌘R)
+1. Compila y ejecuta la app
 3. En la app, ve a **Ajustes** (icono engranaje)
 4. Configura:
    - **URL base**: `https://tu-empresa.atlassian.net`

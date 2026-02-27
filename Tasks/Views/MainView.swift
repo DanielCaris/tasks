@@ -94,7 +94,7 @@ struct MainView: View {
 
     private func setupProviderIfNeeded() {
         guard taskStore.tasks.isEmpty else { return }
-        let url = KeychainHelper.load(key: "jira_url") ?? UserDefaults.standard.string(forKey: "jira_url")
+        let url = KeychainHelper.load(key: "jira_url")
         let email = KeychainHelper.load(key: "jira_email") ?? UserDefaults.standard.string(forKey: "jira_email")
         let token = KeychainHelper.load(key: "jira_api_token")
 

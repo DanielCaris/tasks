@@ -9,9 +9,14 @@ final class JiraProvider: IssueProviderProtocol {
     private let apiToken: String
     private let jql: String
 
-    init(baseURL: String, email: String, apiToken: String, jql: String = "assignee = currentUser() AND status != Done ORDER BY updated DESC") {
-        self.baseURL = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        self.email = email
+    init(baseURL: String, email: String, apiToken: String, jql: String = "assignee = currentUser() ORDER BY updated DESC") {
+        var url = baseURL.trimmingCharacters(in: .whitespaces)
+        url = url.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if !url.hasPrefix("http://") && !url.hasPrefix("https://") {
+            url = "https://" + url
+        }
+        self.baseURL = url
+        self.email = email.trimmingCharacters(in: .whitespaces)
         self.apiToken = apiToken
         self.jql = jql
     }
@@ -40,23 +45,42 @@ final class JiraProvider: IssueProviderProtocol {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            if let errorBody = String(data: data, encoding: .utf8) {
-                throw JiraError.apiError(statusCode: httpResponse.statusCode, message: errorBody)
-            }
-            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: "Unknown error")
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
         }
 
         return try parseSearchResponse(data: data)
     }
 
     private func buildSearchURL() -> URL? {
-        var components = URLComponents(string: "\(baseURL)/rest/api/3/search")
+        // Usar el nuevo endpoint /search/jql (el antiguo /search devuelve 410 Gone)
+        var components = URLComponents(string: "\(baseURL)/rest/api/3/search/jql")
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "100"),
             URLQueryItem(name: "fields", value: "summary,status,priority,assignee,created,updated")
         ]
         return components?.url
+    }
+
+    private func parseJiraError(data: Data, statusCode: Int) -> String {
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let messages = json["errorMessages"] as? [String], !messages.isEmpty {
+                return messages.joined(separator: ". ")
+            }
+            if let errors = json["errors"] as? [String: String], !errors.isEmpty {
+                return errors.map { "\($0.key): \($0.value)" }.joined(separator: ". ")
+            }
+        }
+        if let raw = String(data: data, encoding: .utf8), raw.count < 500 {
+            return raw
+        }
+        switch statusCode {
+        case 401: return "No autorizado. Verifica que el email y el API token sean correctos. Genera un nuevo token en: https://id.atlassian.com/manage-profile/security/api-tokens"
+        case 403: return "Acceso denegado. El token puede estar expirado o revocado."
+        case 404: return "URL no encontrada. Verifica que la URL sea correcta (ej: https://tu-empresa.atlassian.net)"
+        default: return "Error \(statusCode)"
+        }
     }
 
     private func parseSearchResponse(data: Data) throws -> [IssueDTO] {
@@ -76,8 +100,16 @@ final class JiraProvider: IssueProviderProtocol {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date: \(dateString)")
         }
 
-        let response = try decoder.decode(JiraSearchResponse.self, from: data)
-        return response.issues.map { issue in
+        // Soportar "issues" (legacy) y "values" (nuevo endpoint)
+        let issues: [JiraIssue]
+        if let response = try? decoder.decode(JiraSearchResponse.self, from: data) {
+            issues = response.issues
+        } else if let response = try? decoder.decode(JiraSearchResponseValues.self, from: data) {
+            issues = response.values
+        } else {
+            throw JiraError.invalidResponse
+        }
+        return issues.map { issue in
             let assigneeName = issue.fields.assignee?.displayName
             let url = URL(string: "\(baseURL)/browse/\(issue.key)")
             let createdAt = issue.fields.created
@@ -100,6 +132,10 @@ final class JiraProvider: IssueProviderProtocol {
 
 private struct JiraSearchResponse: Decodable {
     let issues: [JiraIssue]
+}
+
+private struct JiraSearchResponseValues: Decodable {
+    let values: [JiraIssue]
 }
 
 private struct JiraIssue: Decodable {
@@ -140,7 +176,7 @@ enum JiraError: LocalizedError {
         switch self {
         case .invalidURL: return "URL de Jira inválida"
         case .invalidCredentials: return "Credenciales inválidas"
-        case .invalidResponse: return "Respuesta inválida del servidor"
+        case .invalidResponse: return "Formato de respuesta de Jira no reconocido"
         case .apiError(let code, let msg): return "Jira API error (\(code)): \(msg)"
         }
     }
