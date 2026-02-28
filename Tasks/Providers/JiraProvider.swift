@@ -396,12 +396,23 @@ final class JiraProvider: IssueProviderProtocol {
         return result
     }
 
-    /// Obtiene la URL del redirect (303) usando curl - URLSession sigue redirects por defecto.
+    /// Obtiene la URL del redirect (303) usando curl. Credenciales en archivo temporal (0600)
+    /// para evitar exponer el token en argumentos del proceso (visible en ps).
     private func fetchAttachmentRedirectURL(attachmentId: String) async -> String? {
         let contentURL = "\(baseURL)/rest/api/3/attachment/content/\(attachmentId)"
+        let configDir = FileManager.default.temporaryDirectory
+        let configPath = configDir.appendingPathComponent("curl-\(UUID().uuidString).conf")
+        let configContent = "user = \"\(email.replacingOccurrences(of: "\"", with: "\\\"")):\(apiToken.replacingOccurrences(of: "\"", with: "\\\""))\"\n"
+        defer { try? FileManager.default.removeItem(at: configPath) }
+        do {
+            try configContent.write(to: configPath, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: configPath.path)
+        } catch {
+            return nil
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        process.arguments = ["-s", "-D", "-", "-o", "/dev/null", "-u", "\(email):\(apiToken)", contentURL]
+        process.arguments = ["-s", "-D", "-", "-o", "/dev/null", "-K", configPath.path, contentURL]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
