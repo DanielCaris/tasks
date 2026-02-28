@@ -18,6 +18,7 @@ struct TaskDetailView: View {
     @State private var isLoadingTransitions = false
     @State private var isTransitioning = false
     @State private var isLoadingSubtasks = false
+    @State private var showOverwriteRichContentAlert = false
     @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore) {
@@ -192,6 +193,27 @@ struct TaskDetailView: View {
                     }
 
                     if isEditingDescription {
+                        if let html = task.descriptionHTML, !html.isEmpty {
+                            HStack(spacing: 6) {
+                                Image(systemName: "info.circle.fill")
+                                    .foregroundStyle(.secondary)
+                                Text("La descripción incluye enlaces e imágenes que no se pueden editar aquí. Para modificarlos, abre el issue en Jira.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if let url = task.url {
+                                    Link(destination: url) {
+                                        Text("Abrir en Jira")
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+                            }
+                            .padding(10)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                            .padding(.bottom, 8)
+                        }
                         TextEditor(text: $editableDescription)
                             .font(.body)
                             .frame(minHeight: 200)
@@ -201,7 +223,11 @@ struct TaskDetailView: View {
 
                         HStack(spacing: 8) {
                             Button {
-                                saveToJira()
+                                if task.descriptionHTML != nil, !(task.descriptionHTML ?? "").isEmpty {
+                                    showOverwriteRichContentAlert = true
+                                } else {
+                                    saveToJira()
+                                }
                             } label: {
                                 Label {
                                     Text("Guardar en Jira")
@@ -252,6 +278,14 @@ struct TaskDetailView: View {
                 }
                 .padding(.top, 16)
             }
+        }
+        .alert("Reemplazar descripción", isPresented: $showOverwriteRichContentAlert) {
+            Button("Cancelar", role: .cancel) { }
+            Button("Guardar de todos modos", role: .destructive) {
+                saveToJira()
+            }
+        } message: {
+            Text("La descripción actual tiene enlaces e imágenes. Guardar la reemplazará solo por texto plano y se perderán esos elementos.")
         }
         .onChange(of: task.title) { _, newValue in
             if editableTitle != newValue { editableTitle = newValue }
