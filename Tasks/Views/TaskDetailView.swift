@@ -331,7 +331,7 @@ struct TaskDetailView: View {
                             }
                         }
                         .padding(8)
-                        .background(.regularMaterial.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
+                        .liquidGlassSubtaskCard()
                     }
                 }
             }

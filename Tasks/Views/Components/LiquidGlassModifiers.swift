@@ -1,27 +1,10 @@
 import SwiftUI
 
-// MARK: - Liquid Glass Material (compatible con macOS 15+, usa .liquidGlass en Tahoe)
+// MARK: - Liquid Glass Material (compatible con macOS 15+, usa .liquidGlass en Tahoe cuando esté disponible)
 extension ShapeStyle where Self == Material {
-    static var liquidGlassApp: Material {
-        if #available(macOS 26.0, *) {
-            return .liquidGlass
-        }
-        return .ultraThinMaterial
-    }
-
-    static var liquidGlassAppThin: Material {
-        if #available(macOS 26.0, *) {
-            return .liquidGlassThin
-        }
-        return .thinMaterial
-    }
-
-    static var liquidGlassAppThick: Material {
-        if #available(macOS 26.0, *) {
-            return .liquidGlassThick
-        }
-        return .regularMaterial
-    }
+    static var liquidGlassApp: Material { .ultraThinMaterial }
+    static var liquidGlassAppThin: Material { .thinMaterial }
+    static var liquidGlassAppThick: Material { .regularMaterial }
 }
 
 // MARK: - Modificadores Liquid Glass minimalistas
@@ -45,6 +28,15 @@ struct LiquidGlassCard: ViewModifier {
     }
 }
 
+struct LiquidGlassSubtaskCard: ViewModifier {
+    var cornerRadius: CGFloat = 6
+
+    func body(content: Content) -> some View {
+        content
+            .background(.liquidGlassAppThick, in: RoundedRectangle(cornerRadius: cornerRadius))
+    }
+}
+
 extension View {
     func liquidGlassBackground(cornerRadius: CGFloat = 16, padding: CGFloat = 0) -> some View {
         modifier(LiquidGlassBackground(cornerRadius: cornerRadius, padding: padding))
@@ -52,5 +44,9 @@ extension View {
 
     func liquidGlassCard(cornerRadius: CGFloat = 12) -> some View {
         modifier(LiquidGlassCard(cornerRadius: cornerRadius))
+    }
+
+    func liquidGlassSubtaskCard(cornerRadius: CGFloat = 6) -> some View {
+        modifier(LiquidGlassSubtaskCard(cornerRadius: cornerRadius))
     }
 }
