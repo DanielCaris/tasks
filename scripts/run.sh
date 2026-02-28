@@ -1,13 +1,25 @@
 #!/bin/bash
-# Compila y ejecuta la app Tasks
+# Ejecuta la app Tasks como Xcode (Cmd+R): compila y lanza la aplicación
 set -e
-cd "$(dirname "$0")/.."
-xcodebuild -scheme Tasks -configuration Debug build -quiet
-APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "Tasks.app" -path "*/Build/Products/Debug/*" 2>/dev/null | head -1)
-if [ -n "$APP_PATH" ]; then
+
+PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+# DerivedData local al proyecto (evita conflictos con otros proyectos "Tasks")
+DERIVED_DATA="$PROJECT_ROOT/build/DerivedData"
+APP_PATH="$DERIVED_DATA/Build/Products/Debug/Tasks.app"
+
+echo "🔨 Compilando..."
+xcodebuild -scheme Tasks -configuration Debug build \
+  -derivedDataPath "$DERIVED_DATA" \
+  -destination 'platform=macOS' \
+  -quiet
+
+if [ -d "$APP_PATH" ]; then
+    echo "▶️  Ejecutando Tasks.app"
     open "$APP_PATH"
-    echo "✓ App abierta"
+    echo "✓ App en ejecución"
 else
-    echo "✗ No se encontró Tasks.app"
+    echo "✗ Error: No se encontró Tasks.app en $APP_PATH"
     exit 1
 fi
