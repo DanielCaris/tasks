@@ -6,6 +6,7 @@
 |---------|-------------|
 | `make build` | Compiles the project (Debug configuration) |
 | `make run` | Builds and launches the Tasks app |
+| `make run-attached` | Builds and runs the app in the terminal (logs visibles, como en Xcode) |
 | `make clean` | Cleans the build artifacts |
 
 ## Running the app after changes
