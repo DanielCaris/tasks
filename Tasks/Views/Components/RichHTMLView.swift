@@ -114,6 +114,9 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
             urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "ID de media vacío"]))
             return
         }
+        #if DEBUG
+        print("[JiraImage] jira-image://\(mediaId) → intentando attachment/content")
+        #endif
         let contentURL = "\(baseURL)/rest/api/3/attachment/content/\(mediaId)?redirect=false"
         guard let downloadURL = URL(string: contentURL) else {
             urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "URL inválida"]))
@@ -124,7 +127,11 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
         if let credData = credentials.data(using: .utf8) {
             request.setValue("Basic \(credData.base64EncodedString())", forHTTPHeaderField: "Authorization")
         }
-        URLSession.shared.dataTask(with: request) { data, response, error in
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            guard let self else {
+                urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "Handler no disponible"]))
+                return
+            }
             if let error = error {
                 urlSchemeTask.didFailWithError(error)
                 return
@@ -134,6 +141,9 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
                 return
             }
             if httpResponse.statusCode == 303, let location = httpResponse.value(forHTTPHeaderField: "Location"), let redirectURL = URL(string: location) {
+                #if DEBUG
+                print("[JiraImage] jira-image://\(mediaId) → 303 redirect a \(redirectURL.absoluteString)")
+                #endif
                 var redirectRequest = URLRequest(url: redirectURL)
                 if let credData = credentials.data(using: .utf8) {
                     redirectRequest.setValue("Basic \(credData.base64EncodedString())", forHTTPHeaderField: "Authorization")
@@ -155,11 +165,17 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
                     urlSchemeTask.didFinish()
                 }.resume()
             } else if (200...299).contains(httpResponse.statusCode), let data = data {
+                #if DEBUG
+                print("[JiraImage] jira-image://\(mediaId) → OK (\(data.count) bytes)")
+                #endif
                 let mimeType = httpResponse.mimeType ?? "image/png"
                 urlSchemeTask.didReceive(URLResponse(url: url, mimeType: mimeType, expectedContentLength: data.count, textEncodingName: nil))
                 urlSchemeTask.didReceive(data)
                 urlSchemeTask.didFinish()
             } else {
+                #if DEBUG
+                print("[JiraImage] jira-image://\(mediaId) → error status=\(httpResponse.statusCode)")
+                #endif
                 urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "No se pudo cargar la imagen"]))
             }
         }.resume()

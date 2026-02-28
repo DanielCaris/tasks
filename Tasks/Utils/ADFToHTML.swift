@@ -1,14 +1,29 @@
 import Foundation
 
+/// Consume IDs de attachment en orden para media nodes no resueltos por filename.
+private final class AttachmentFallback {
+    let ids: [String]
+    var index: Int = 0
+    init(ids: [String]) { self.ids = ids }
+    func next() -> String? {
+        guard index < ids.count else { return nil }
+        defer { index += 1 }
+        return ids[index]
+    }
+}
+
 /// Convierte documentos ADF (Atlassian Document Format) de Jira a HTML enriquecido.
 /// Soporta: párrafos, negrita, cursiva, links, listas, tablas, code blocks, imágenes, etc.
 enum ADFToHTML {
     /// Convierte un documento ADF (dict) a HTML. baseURL para media. attachmentMap: filename -> attachmentId (para imágenes).
-    static func convert(adf: [String: Any], baseURL: String, attachmentMap: [String: String] = [:]) -> String {
+    /// imageAttachmentIdsInOrder: IDs de attachments de imagen en orden; cuando media.alt está vacío, se usa el siguiente de la lista.
+    /// mediaIdToSignedURL: UUID (media.id) -> URL firmada del CDN; permite cargar imágenes sin auth.
+    static func convert(adf: [String: Any], baseURL: String, attachmentMap: [String: String] = [:], imageAttachmentIdsInOrder: [String] = [], mediaIdToSignedURL: [String: String] = [:]) -> String {
         guard let content = adf["content"] as? [[String: Any]], !content.isEmpty else {
             return ""
         }
-        let html = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined(separator: "\n")
+        let fallback = imageAttachmentIdsInOrder.isEmpty ? nil : AttachmentFallback(ids: imageAttachmentIdsInOrder)
+        let html = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined(separator: "\n")
         return """
         <div class="adf-content" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.5; color: var(--adf-text);">
         \(html)
@@ -16,15 +31,15 @@ enum ADFToHTML {
         """
     }
 
-    private static func nodeToHTML(_ node: [String: Any], baseURL: String, attachmentMap: [String: String] = [:]) -> String? {
+    private static func nodeToHTML(_ node: [String: Any], baseURL: String, attachmentMap: [String: String] = [:], fallback: AttachmentFallback? = nil, mediaIdToSignedURL: [String: String] = [:]) -> String? {
         guard let type = node["type"] as? String else { return nil }
         let content = node["content"] as? [[String: Any]] ?? []
         let attrs = node["attrs"] as? [String: Any] ?? [:]
-        let marks = node["marks"] as? [[String: Any]] ?? []
+        let _ = node["marks"] as? [[String: Any]] ?? []
 
         switch type {
         case "doc":
-            return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined(separator: "\n")
+            return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined(separator: "\n")
 
         case "paragraph":
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
@@ -37,19 +52,19 @@ enum ADFToHTML {
             return "<\(tag) style='margin: 0.75em 0 0.25em; font-size: \(headingSize(level))em;'>\(inner)</\(tag)>"
 
         case "bulletList":
-            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<ul style='margin: 0.5em 0; padding-left: 1.5em;'>\(items)</ul>"
 
         case "orderedList":
-            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<ol style='margin: 0.5em 0; padding-left: 1.5em;'>\(items)</ol>"
 
         case "listItem":
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<li style='margin: 0.25em 0;'>\(inner)</li>"
 
         case "blockquote":
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<blockquote style='margin: 0.5em 0; padding-left: 1em; border-left: 4px solid var(--adf-border); color: var(--adf-secondary);'>\(inner)</blockquote>"
 
         case "codeBlock":
@@ -64,36 +79,36 @@ enum ADFToHTML {
         case "panel":
             let panelType = attrs["panelType"] as? String ?? "info"
             let bg = panelBackground(panelType)
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<div style='margin: 0.5em 0; padding: 12px; background: \(bg); border-radius: 6px;'>\(inner)</div>"
 
         case "table":
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<table style='border-collapse: collapse; width: 100%; margin: 0.5em 0;'><tbody>\(inner)</tbody></table>"
 
         case "tableRow":
-            let cells = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let cells = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<tr>\(cells)</tr>"
 
         case "tableHeader", "tableCell":
             let cellTag = type == "tableHeader" ? "th" : "td"
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<\(cellTag) style='border: 1px solid var(--adf-border); padding: 8px;'>\(inner)</\(cellTag)>"
 
         case "mediaSingle", "mediaGroup":
-            let mediaHTML = content.compactMap { mediaToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let mediaHTML = content.compactMap { mediaToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<div style='margin: 0.5em 0;'>\(mediaHTML)</div>"
 
         case "media":
-            return mediaToHTML(node, baseURL: baseURL, attachmentMap: attachmentMap)
+            return mediaToHTML(node, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL)
 
         case "expand":
             let title = attrs["title"] as? String ?? ""
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
             return "<details style='margin: 0.5em 0;'><summary style='cursor: pointer; font-weight: 600;'>\(escape(title.isEmpty ? "▼" : title))</summary><div style='margin-top: 0.5em;'>\(inner)</div></details>"
 
         default:
-            return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined().isEmpty ? nil : content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
+            return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined().isEmpty ? nil : content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
         }
     }
 
@@ -154,14 +169,16 @@ enum ADFToHTML {
         }
     }
 
-    private static func mediaToHTML(_ node: [String: Any], baseURL: String, attachmentMap: [String: String] = [:]) -> String? {
+    private static func mediaToHTML(_ node: [String: Any], baseURL: String, attachmentMap: [String: String] = [:], fallback: AttachmentFallback? = nil, mediaIdToSignedURL: [String: String] = [:]) -> String? {
         let attrs = node["attrs"] as? [String: Any] ?? [:]
         let marks = node["marks"] as? [[String: Any]] ?? []
         let mediaId = attrs["id"] as? String ?? ""
         let mediaType = attrs["type"] as? String ?? "file"
-        let alt = attrs["alt"] as? String ?? "imagen"
-        // Jira ADF media usa UUID; el API espera id numérico. Mapeamos por filename (alt), case-insensitive.
-        let attachmentId = attachmentMap[alt.lowercased()] ?? attachmentMap[alt] ?? mediaId
+        let alt = attrs["alt"] as? String ?? ""
+        // 1) URL firmada (UUID→signedURL) carga directa. 2) attachmentId por filename/fallback → jira-image://
+        let signedURL = mediaIdToSignedURL[mediaId]
+        var attachmentId = attachmentMap[alt.lowercased()] ?? attachmentMap[alt]
+        if attachmentId == nil, alt.isEmpty { attachmentId = fallback?.next() }
         let width = attrs["width"] as? Int ?? 400
         let height = attrs["height"] as? Int ?? 300
 
@@ -173,28 +190,17 @@ enum ADFToHTML {
             }
         }
 
-        // Para type "link" a veces hay URL en attrs; para "file" usamos el endpoint de Jira (requiere auth en navegador)
-        let imgURL: String
-        if mediaType == "link", let url = attrs["url"] as? String ?? href {
-            imgURL = url
-        } else if !mediaId.isEmpty {
-            let base = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-            imgURL = "\(base)/rest/api/3/attachment/content/\(mediaId)"
-        } else {
-            return nil
-        }
-
-        // type "link": URL externa. type "file": jira-image:// con attachmentId real (mapeado por filename)
         let imgSrc: String
         if mediaType == "link", let url = attrs["url"] as? String ?? href, url.hasPrefix("http") {
             imgSrc = url
-        } else if !attachmentId.isEmpty {
-            imgSrc = "jira-image://\(attachmentId)"
+        } else if let url = signedURL, !url.isEmpty {
+            imgSrc = url  // URL firmada del CDN, carga directa sin auth
+        } else if let id = attachmentId, !id.isEmpty {
+            imgSrc = "jira-image://\(id)"
         } else if !mediaId.isEmpty {
-            // Fallback: probar con mediaId por si coincide con attachment id
             imgSrc = "jira-image://\(mediaId)"
         } else {
-            return nil
+            return "<div style='padding:24px;background:var(--adf-code-bg);border-radius:6px;color:var(--adf-secondary);font-size:13px;'>[Imagen no disponible]</div>"
         }
         let linkWrap = href != nil ? "<a href=\"\(escape(href!))\" target=\"_blank\">" : ""
         let linkEnd = href != nil ? "</a>" : ""

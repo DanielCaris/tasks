@@ -49,7 +49,7 @@ final class JiraProvider: IssueProviderProtocol {
             throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
         }
 
-        return try parseSearchResponse(data: data)
+        return try await parseSearchResponse(data: data)
     }
 
     /// Obtiene las subtareas de un issue padre.
@@ -73,7 +73,7 @@ final class JiraProvider: IssueProviderProtocol {
             let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
             throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
         }
-        return try parseSearchResponse(data: data, parentKey: parentKey)
+        return try await parseSearchResponse(data: data, parentKey: parentKey)
     }
 
     func fetchProjects() async throws -> [ProjectOption] {
@@ -277,7 +277,7 @@ final class JiraProvider: IssueProviderProtocol {
     }
 
     private func fetchIssue(issueKey: String) async throws -> IssueDTO {
-        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)") else {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=summary,description,status,priority,assignee,created,updated,attachment") else {
             throw JiraError.invalidURL
         }
 
@@ -321,8 +321,11 @@ final class JiraProvider: IssueProviderProtocol {
         let browseURL = URL(string: "\(baseURL)/browse/\(issue.key)")
         let desc = issue.fields.description
         let descriptionText = desc?.plainText
-        let attachmentMap = buildAttachmentMap(attachments: issue.fields.attachment ?? [])
-        let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap) }
+        let attachments = issue.fields.attachment ?? []
+        let attachmentMap = buildAttachmentMap(attachments: attachments)
+        let imageIds = imageAttachmentIdsInOrder(attachments: attachments)
+        let mediaIdToSignedURL = await buildMediaIdToSignedURLMap(attachments: attachments)
+        let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
         return IssueDTO(
             externalId: issue.key,
             title: issue.fields.summary,
@@ -354,14 +357,77 @@ final class JiraProvider: IssueProviderProtocol {
         ]
     }
 
-    /// Mapa filename (minúsculas) -> attachmentId para resolver imágenes ADF. Sin duplicados.
+    /// Mapa filename (minúsculas) -> attachmentId para resolver imágenes ADF.
+    /// Jira usa UUID en media nodes; el API de attachment/content requiere el ID numérico.
+    /// Añadimos claves alternativas porque: 1) media.alt puede estar vacío al pegar imágenes,
+    /// 2) Jira nombra "image-YYYYMMDD-HHMMSS.png" pero alt puede ser "image" o "image.png".
     private func buildAttachmentMap(attachments: [JiraAttachment]) -> [String: String] {
         var map: [String: String] = [:]
         for a in attachments where a.filename.map({ !$0.isEmpty }) ?? false {
-            let key = (a.filename ?? "").lowercased()
-            if map[key] == nil { map[key] = a.id }
+            let filename = (a.filename ?? "").lowercased()
+            if map[filename] == nil { map[filename] = a.id }
+            // Quitar patrón -YYYYMMDD-HHMMSS típico de Jira al pegar imágenes
+            let stem = filename.replacingOccurrences(of: #"-\d{8}-\d{6}\."#, with: ".", options: .regularExpression)
+            if stem != filename, map[stem] == nil { map[stem] = a.id }
         }
         return map
+    }
+
+    /// IDs de attachments de imagen en orden, para resolver media nodes con alt vacío (imágenes pegadas).
+    private func imageAttachmentIdsInOrder(attachments: [JiraAttachment]) -> [String] {
+        let imageExts = ["png", "jpg", "jpeg", "gif", "webp", "svg", "heic", "bmp", "tiff"]
+        return attachments.compactMap { a in
+            guard let f = a.filename?.lowercased() else { return nil }
+            return imageExts.contains(where: { f.hasSuffix(".\($0)") }) ? a.id : nil
+        }
+    }
+
+    /// Mapeo UUID (Media Services ID) → URL firmada del CDN.
+    /// GET /attachment/content/{id} devuelve 303 con Location: .../file/{UUID}/binary?token=...
+    /// Usamos la URL firmada directamente como img src (no requiere auth).
+    private func buildMediaIdToSignedURLMap(attachments: [JiraAttachment]) async -> [String: String] {
+        guard !attachments.isEmpty else { return [:] }
+        var result: [String: String] = [:]
+        for att in attachments {
+            let signedURL: String? = await fetchAttachmentRedirectURL(attachmentId: att.id)
+            guard let url = signedURL, let uuid = Self.extractUUIDFromLocation(url) else { continue }
+            result[uuid] = url
+        }
+        return result
+    }
+
+    /// Obtiene la URL del redirect (303) usando curl - URLSession sigue redirects por defecto.
+    private func fetchAttachmentRedirectURL(attachmentId: String) async -> String? {
+        let contentURL = "\(baseURL)/rest/api/3/attachment/content/\(attachmentId)"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+        process.arguments = ["-s", "-D", "-", "-o", "/dev/null", "-u", "\(email):\(apiToken)", contentURL]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        return await withCheckedContinuation { continuation in
+            process.terminationHandler = { _ in
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8) ?? ""
+                let location = output.split(separator: "\n").first { $0.lowercased().hasPrefix("location:") }
+                    .map { String($0.dropFirst(9)).trimmingCharacters(in: .whitespaces) }
+                continuation.resume(returning: location.flatMap { URL(string: $0) != nil ? $0 : nil })
+            }
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(returning: nil)
+            }
+        }
+    }
+
+    private static func extractUUIDFromLocation(_ location: String) -> String? {
+        guard let range = location.range(of: "/file/") else { return nil }
+        let after = location[range.upperBound...]
+        guard let end = after.firstIndex(of: "/") else { return nil }
+        let uuid = String(after[..<end])
+        let pattern = #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"#
+        return uuid.range(of: pattern, options: .regularExpression) != nil ? uuid : nil
     }
 
     private func buildSearchURL() -> URL? {
@@ -404,7 +470,7 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
-    private func parseSearchResponse(data: Data, parentKey: String? = nil) throws -> [IssueDTO] {
+    private func parseSearchResponse(data: Data, parentKey: String? = nil) async throws -> [IssueDTO] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -430,16 +496,20 @@ final class JiraProvider: IssueProviderProtocol {
         } else {
             throw JiraError.invalidResponse
         }
-        return issues.map { issue in
+        var results: [IssueDTO] = []
+        for issue in issues {
             let assigneeName = issue.fields.assignee?.displayName
             let url = URL(string: "\(baseURL)/browse/\(issue.key)")
             let createdAt = issue.fields.created
             let updatedAt = issue.fields.updated
             let desc = issue.fields.description
             let descriptionText = desc?.plainText
-            let attachmentMap = buildAttachmentMap(attachments: issue.fields.attachment ?? [])
-            let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap) }
-            return IssueDTO(
+            let attachments = issue.fields.attachment ?? []
+            let attachmentMap = buildAttachmentMap(attachments: attachments)
+            let imageIds = imageAttachmentIdsInOrder(attachments: attachments)
+            let mediaIdToSignedURL = await buildMediaIdToSignedURLMap(attachments: attachments)
+            let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
+            results.append(IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
                 status: issue.fields.status.name,
@@ -451,8 +521,9 @@ final class JiraProvider: IssueProviderProtocol {
                 priority: issue.fields.priority?.name,
                 createdAt: createdAt,
                 updatedAt: updatedAt
-            )
+            ))
         }
+        return results
     }
 }
 
