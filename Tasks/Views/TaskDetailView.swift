@@ -232,10 +232,6 @@ struct TaskDetailView: View {
                         )
                         .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280), alignment: .topLeading)
                         .background(.regularMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(alignment: .topLeading) {
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(.quaternary, lineWidth: 1)
-                        }
                     } else {
                         Text(task.descriptionText ?? "Sin descripción")
                             .font(.body)
