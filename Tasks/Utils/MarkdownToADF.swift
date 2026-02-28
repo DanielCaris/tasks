@@ -4,7 +4,13 @@ import Foundation
 /// Soporta: headings, negrita, cursiva, links, code inline/block, listas, blockquotes, reglas.
 enum MarkdownToADF {
     /// Convierte una cadena Markdown a documento ADF.
-    static func convert(_ markdown: String) -> [String: Any] {
+    /// - Parameter originalADF: ADF original de Jira; si se proporciona, los nodos media (imágenes sin URL en MD) se preservan.
+    static func convert(_ markdown: String, originalADF: [String: Any]? = nil) -> [String: Any] {
+        var mediaPool: [[String: Any]] = []
+        if let adf = originalADF {
+            mediaPool = extractMediaNodesInOrder(adf)
+        }
+
         let lines = markdown.components(separatedBy: "\n")
         var content: [[String: Any]] = []
         var i = 0
@@ -38,7 +44,7 @@ enum MarkdownToADF {
                 continue
             }
 
-            // Block-level image: ![alt](url) -> párrafo con enlace (Jira puede rechazar media sin collection)
+            // Block-level image: ![alt](url) con http → párrafo con enlace
             if let (alt, imgUrl) = parseBlockImage(trimmed), !imgUrl.isEmpty, imgUrl.hasPrefix("http") {
                 content.append([
                     "type": "paragraph",
@@ -48,6 +54,16 @@ enum MarkdownToADF {
                 ])
                 i += 1
                 continue
+            }
+
+            // Block-level image: ![alt](jira-image://id) o ![alt] sin URL → preservar nodo media original de Jira
+            if let (alt, imgUrl) = parseBlockImage(trimmed), !mediaPool.isEmpty {
+                let isJiraImage = imgUrl.isEmpty || imgUrl.hasPrefix("jira-image://")
+                if isJiraImage, let preserved = popMatchingMedia(alt: alt, mediaId: imgUrl.hasPrefix("jira-image://") ? String(imgUrl.dropFirst("jira-image://".count)) : nil, from: &mediaPool) {
+                    content.append(preserved)
+                    i += 1
+                    continue
+                }
             }
 
             // Blockquote: > ...
@@ -190,7 +206,93 @@ enum MarkdownToADF {
     private static func parseBlockImage(_ s: String) -> (String, String)? {
         let t = s.trimmingCharacters(in: .whitespaces)
         guard t.hasPrefix("![") else { return nil }
-        guard let (alt, url, _) = parseImage(t, from: t.startIndex) else { return nil }
+        return parseBlockImageContent(t)
+    }
+
+    /// Extrae nodos mediaSingle/mediaGroup del ADF en orden (para preservar imágenes de Jira).
+    private static func extractMediaNodesInOrder(_ adf: [String: Any]) -> [[String: Any]] {
+        var result: [[String: Any]] = []
+        guard let content = adf["content"] as? [[String: Any]] else { return result }
+        for node in content {
+            collectMediaNodes(from: node, into: &result)
+        }
+        return result
+    }
+
+    private static func collectMediaNodes(from node: [String: Any], into result: inout [[String: Any]]) {
+        guard let type = node["type"] as? String else { return }
+        let content = node["content"] as? [[String: Any]] ?? []
+        if type == "mediaSingle" || type == "mediaGroup" {
+            result.append(node)
+        } else {
+            for child in content {
+                collectMediaNodes(from: child, into: &result)
+            }
+        }
+    }
+
+    /// Toma el nodo media que coincida por mediaId (preferido) o alt, y lo elimina del pool.
+    private static func popMatchingMedia(alt: String, mediaId: String? = nil, from pool: inout [[String: Any]]) -> [String: Any]? {
+        guard !pool.isEmpty else { return nil }
+        if let mid = mediaId, !mid.isEmpty {
+            if let idx = pool.firstIndex(where: { getMediaId(from: $0) == mid }) {
+                return pool.remove(at: idx)
+            }
+        }
+        let altNorm = alt.trimmingCharacters(in: .whitespaces).lowercased()
+        if !altNorm.isEmpty {
+            if let idx = pool.firstIndex(where: { mediaAlt(of: $0)?.lowercased() == altNorm }) {
+                return pool.remove(at: idx)
+            }
+        }
+        return pool.removeFirst()
+    }
+
+    private static func getMediaId(from node: [String: Any]) -> String? {
+        let content = node["content"] as? [[String: Any]] ?? []
+        for child in content {
+            if (child["type"] as? String) == "media",
+               let attrs = child["attrs"] as? [String: Any],
+               let id = attrs["id"] as? String {
+                return id
+            }
+        }
+        return nil
+    }
+
+    private static func mediaAlt(of node: [String: Any]) -> String? {
+        let content = node["content"] as? [[String: Any]] ?? []
+        for child in content {
+            if (child["type"] as? String) == "media",
+               let attrs = child["attrs"] as? [String: Any],
+               let alt = attrs["alt"] as? String {
+                return alt
+            }
+        }
+        return nil
+    }
+
+    /// Parsea ![alt](url) o ![alt] (sin url). Retorna (alt, url) con url vacío si no hay paréntesis.
+    private static func parseBlockImageContent(_ s: String) -> (String, String)? {
+        guard s.hasPrefix("![") else { return nil }
+        var i = s.index(s.startIndex, offsetBy: 2)
+        var alt = ""
+        while i < s.endIndex, s[i] != "]" {
+            if s[i] == "\\" { i = s.index(after: i) }
+            if i < s.endIndex, s[i] != "]" { alt.append(s[i]) }
+            i = s.index(after: i)
+        }
+        guard i < s.endIndex, s[i] == "]" else { return nil }
+        i = s.index(after: i)
+        guard i < s.endIndex, s[i] == "(" else { return (alt, "") }
+        i = s.index(after: i)
+        var url = ""
+        while i < s.endIndex, s[i] != ")" {
+            if s[i] == "\\" { i = s.index(after: i) }
+            if i < s.endIndex, s[i] != ")" { url.append(s[i]) }
+            i = s.index(after: i)
+        }
+        guard i < s.endIndex, s[i] == ")" else { return (alt, "") }
         return (alt, url)
     }
 

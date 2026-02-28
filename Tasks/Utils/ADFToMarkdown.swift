@@ -150,6 +150,10 @@ enum ADFToMarkdown {
                 url = href
             }
         }
+        // Para imágenes de Jira (attachments): usar jira-image://mediaId para preservar referencia al guardar
+        if url.isEmpty, let mediaId = attrs["id"] as? String, !mediaId.isEmpty {
+            url = "jira-image://\(mediaId)"
+        }
         var href: String?
         for m in marks {
             if (m["type"] as? String) == "link", let a = m["attrs"] as? [String: Any], let h = a["href"] as? String {
@@ -157,7 +161,7 @@ enum ADFToMarkdown {
                 break
             }
         }
-        let imgMarkdown = (!url.isEmpty && (url.hasPrefix("http") || url.hasPrefix("https")))
+        let imgMarkdown = (!url.isEmpty && (url.hasPrefix("http") || url.hasPrefix("https") || url.hasPrefix("jira-image://")))
             ? "![\(escapeMarkdown(alt))](\(url))"
             : "![\(escapeMarkdown(alt))]"
         if let h = href, !h.isEmpty {

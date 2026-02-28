@@ -10,6 +10,8 @@ struct TransitionOption: Identifiable {
 protocol IssueProviderProtocol {
     static var providerId: String { get }
     func fetchIssues() async throws -> [IssueDTO]
+    /// Obtiene un solo issue por ID. Retorna nil si el proveedor no lo soporta.
+    func fetchIssue(externalId: String) async throws -> IssueDTO?
     /// Actualiza título y/o descripción en el proveedor remoto. description puede ser String (markdown) o ADF dict.
     /// Retorna el ADF enviado para descripción (para almacenar localmente) o nil.
     func updateIssue(externalId: String, title: String?, description: Any?) async throws -> [String: Any]?
@@ -24,6 +26,10 @@ protocol IssueProviderProtocol {
 }
 
 extension IssueProviderProtocol {
+    func fetchIssue(externalId: String) async throws -> IssueDTO? {
+        nil
+    }
+
     func updateIssue(externalId: String, title: String?, description: Any?) async throws -> [String: Any]? {
         // Implementación por defecto: no hacer nada (proveedores sin soporte de edición)
         return nil

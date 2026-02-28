@@ -66,6 +66,22 @@ final class TaskStore: ObservableObject {
         isLoading = false
     }
 
+    /// Recarga solo la tarea indicada desde el proveedor (sin actualizar el resto).
+    func refreshTask(_ task: TaskItem) async {
+        guard let provider else {
+            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            return
+        }
+        do {
+            guard let dto = try await provider.fetchIssue(externalId: task.externalId) else { return }
+            await mergeWithLocalData(dtos: [dto], providerId: type(of: provider).providerId)
+            try? modelContext.save()
+            await loadTasks()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func mergeWithLocalData(dtos: [IssueDTO], providerId: String) async {
         for dto in dtos {
             let taskId = "\(providerId):\(dto.externalId)"
@@ -122,8 +138,11 @@ final class TaskStore: ObservableObject {
             return
         }
         do {
-            // Convertir Markdown→ADF para enviar a Jira y conservar formato
-            let descriptionADF: Any? = description.map { MarkdownToADF.convert($0) }
+            // Convertir Markdown→ADF; si hay ADF original, preservar nodos media (imágenes de Jira)
+            let originalADF: [String: Any]? = task.descriptionADFJSON.flatMap { json in
+                (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any]
+            }
+            let descriptionADF: Any? = description.map { MarkdownToADF.convert($0, originalADF: originalADF) }
             print("[Tasks] updateTaskInProvider: llamando provider.updateIssue...")
             let adfSent = try await provider.updateIssue(externalId: task.externalId, title: title, description: descriptionADF)
             print("[Tasks] updateTaskInProvider: API OK, actualizando modelo local")
@@ -137,12 +156,17 @@ final class TaskStore: ObservableObject {
                    let jsonData = try? JSONSerialization.data(withJSONObject: adf),
                    let jsonStr = String(data: jsonData, encoding: .utf8) {
                     task.descriptionADFJSON = jsonStr
-                    let baseURL = KeychainHelper.load(key: "jira_url") ?? ""
-                    task.descriptionHTML = ADFToHTML.convert(adf: adf, baseURL: baseURL)
                 } else {
                     task.descriptionHTML = nil
                     task.descriptionADFJSON = nil
                 }
+            }
+            // Re-fetch el issue para obtener descriptionHTML con imágenes resueltas (attachmentMap, signed URLs).
+            // ADFToHTML sin esos datos genera jira-image://uuid que falla (la API espera attachment ID numérico).
+            let savedMarkdown = task.descriptionMarkdown
+            if let dto = try? await provider.fetchIssue(externalId: task.externalId) {
+                await mergeWithLocalData(dtos: [dto], providerId: type(of: provider).providerId)
+                task.descriptionMarkdown = savedMarkdown
             }
             task.lastSyncedAt = Date()
             try? modelContext.save()

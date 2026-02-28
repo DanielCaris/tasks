@@ -303,10 +303,14 @@ final class JiraProvider: IssueProviderProtocol {
             let key: String
         }
         let createResponse = try JSONDecoder().decode(CreateResponse.self, from: data)
-        return try await fetchIssue(issueKey: createResponse.key)
+        return try await fetchIssueInternal(issueKey: createResponse.key)
     }
 
-    private func fetchIssue(issueKey: String) async throws -> IssueDTO {
+    func fetchIssue(externalId: String) async throws -> IssueDTO? {
+        try await fetchIssueInternal(issueKey: externalId)
+    }
+
+    private func fetchIssueInternal(issueKey: String) async throws -> IssueDTO {
         guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=summary,description,status,priority,assignee,created,updated,attachment") else {
             throw JiraError.invalidURL
         }
