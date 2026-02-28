@@ -174,12 +174,11 @@ struct TaskDetailView: View {
 
             if task.providerId == JiraProvider.providerId {
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack {
+                    HStack(spacing: 8) {
                         Text("Descripción")
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundStyle(.secondary)
-                        Spacer()
                         if !isEditingDescription, (task.descriptionHTML != nil || (task.descriptionText ?? "").isEmpty == false) {
                             Button {
                                 isEditingDescription = true
@@ -187,7 +186,9 @@ struct TaskDetailView: View {
                                 Label("Editar", systemImage: "pencil")
                                     .font(.caption)
                             }
+                            .buttonStyle(.link)
                         }
+                        Spacer()
                     }
 
                     if isEditingDescription {
@@ -231,14 +232,14 @@ struct TaskDetailView: View {
                             colorScheme: colorScheme
                         )
                         .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280), alignment: .topLeading)
-                        .background(.regularMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                        .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
                     } else {
                         Text(task.descriptionText ?? "Sin descripción")
                             .font(.body)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
                             .padding(8)
-                            .background(.regularMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                            .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
 
                         Button {
                             isEditingDescription = true
@@ -246,6 +247,7 @@ struct TaskDetailView: View {
                             Label("Editar descripción", systemImage: "pencil")
                                 .font(.caption)
                         }
+                        .buttonStyle(.link)
                     }
                 }
                 .padding(.top, 16)
