@@ -1,0 +1,17 @@
+---
+description: Verificar contraste en Dark mode al modificar vistas o estilos
+globs: "**/*.swift,**/*.html"
+alwaysApply: false
+---
+
+# Dark Mode y Contraste
+
+Al modificar vistas SwiftUI o contenido HTML (ADF, descripciones):
+
+1. **SwiftUI**: Usar colores semánticos (`.primary`, `.secondary`) que se adaptan automáticamente. Evitar colores fijos que no funcionen en ambos modos.
+
+2. **HTML/ADF**: Usar variables CSS `var(--adf-*)` definidas en RichHTMLView. Las variables tienen valores para light y `@media (prefers-color-scheme: dark)`.
+
+3. **Contraste mínimo**: WCAG AA requiere 4.5:1 para texto normal. En dark mode: texto claro (#e8e8ed) sobre fondos oscuros (#2c2c2e).
+
+4. **Validar**: Ejecutar `make run` y alternar entre Light/Dark (System Preferences → Appearance) para verificar que todo sea legible.

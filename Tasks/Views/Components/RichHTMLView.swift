@@ -8,6 +8,7 @@ struct RichHTMLView: NSViewRepresentable {
     let baseURL: String
     let jiraEmail: String?
     let jiraToken: String?
+    var colorScheme: ColorScheme = .light
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -19,17 +20,30 @@ struct RichHTMLView: NSViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
+        webView.appearance = NSApp.effectiveAppearance
         return webView
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        let isDark = colorScheme == .dark || NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        context.coordinator.isDark = isDark
+        webView.appearance = isDark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
+
+        let textColor = isDark ? "#ffffff" : "#1d1d1f"
+        let linkColor = "#64d2ff"
+
         let fullHTML = """
         <!DOCTYPE html>
-        <html>
+        <html lang="es">
         <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>html,body{margin:0;padding:0;text-align:left;display:block;}</style>
+        <meta id="dark-mode" content="\(isDark ? "1" : "0")">
+        <style>
+        *{color:\(textColor) !important;}
+        a{color:\(linkColor) !important;}
+        html,body{margin:0;padding:0;background:transparent !important;}
+        </style>
         </head>
-        <body style="vertical-align:top;">\(html)</body>
+        <body>\(html)</body>
         </html>
         """
         let base = URL(string: baseURL) ?? URL(string: "https://example.atlassian.net")!
@@ -41,6 +55,8 @@ struct RichHTMLView: NSViewRepresentable {
     }
 
     class Coordinator: NSObject, WKNavigationDelegate {
+        var isDark = false
+
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             if navigationAction.navigationType == .linkActivated,
                let url = navigationAction.request.url,
@@ -50,6 +66,24 @@ struct RichHTMLView: NSViewRepresentable {
             } else {
                 decisionHandler(.allow)
             }
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            let color = isDark ? "#ffffff" : "#1d1d1f"
+            let script = """
+            (function(){
+                document.body.style.color='\(color)';
+                document.body.style.backgroundColor='transparent';
+                var all=document.querySelectorAll('*');
+                for(var i=0;i<all.length;i++){
+                    var el=all[i];
+                    if(el.tagName!=='A'){el.style.color='\(color)';}
+                }
+                var links=document.querySelectorAll('a');
+                for(var j=0;j<links.length;j++){links[j].style.color='#64d2ff';}
+            })();
+            """
+            webView.evaluateJavaScript(script, completionHandler: nil)
         }
     }
 }

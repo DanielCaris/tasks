@@ -75,7 +75,7 @@ struct MainView: View {
             if let message = taskStore.errorMessage {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(.red)
                     Text(message)
                         .font(.caption)
                         .lineLimit(2)

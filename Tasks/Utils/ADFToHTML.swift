@@ -10,7 +10,7 @@ enum ADFToHTML {
         }
         let html = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined(separator: "\n")
         return """
-        <div class="adf-content" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.5; color: #333;">
+        <div class="adf-content" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.5; color: var(--adf-text);">
         \(html)
         </div>
         """
@@ -50,16 +50,16 @@ enum ADFToHTML {
 
         case "blockquote":
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
-            return "<blockquote style='margin: 0.5em 0; padding-left: 1em; border-left: 4px solid #ccc; color: #666;'>\(inner)</blockquote>"
+            return "<blockquote style='margin: 0.5em 0; padding-left: 1em; border-left: 4px solid var(--adf-border); color: var(--adf-secondary);'>\(inner)</blockquote>"
 
         case "codeBlock":
             let lang = attrs["language"] as? String ?? ""
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
             let langAttr = lang.isEmpty ? "" : " data-language=\"\(escape(lang))\""
-            return "<pre style='margin: 0.5em 0; padding: 12px; background: #f5f5f5; border-radius: 6px; overflow-x: auto; font-family: 'SF Mono', Monaco, monospace; font-size: 13px;'\(langAttr)><code>\(inner)</code></pre>"
+            return "<pre style='margin: 0.5em 0; padding: 12px; background: var(--adf-code-bg); border-radius: 6px; overflow-x: auto; font-family: \"SF Mono\", Monaco, monospace; font-size: 13px; color: var(--adf-text);'\(langAttr)><code>\(inner)</code></pre>"
 
         case "rule":
-            return "<hr style='margin: 1em 0; border: none; border-top: 1px solid #ddd;'>"
+            return "<hr style='margin: 1em 0; border: none; border-top: 1px solid var(--adf-border);'>"
 
         case "panel":
             let panelType = attrs["panelType"] as? String ?? "info"
@@ -78,7 +78,7 @@ enum ADFToHTML {
         case "tableHeader", "tableCell":
             let cellTag = type == "tableHeader" ? "th" : "td"
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
-            return "<\(cellTag) style='border: 1px solid #ddd; padding: 8px;'>\(inner)</\(cellTag)>"
+            return "<\(cellTag) style='border: 1px solid var(--adf-border); padding: 8px;'>\(inner)</\(cellTag)>"
 
         case "mediaSingle", "mediaGroup":
             let mediaHTML = content.compactMap { mediaToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap) }.joined()
@@ -114,12 +114,12 @@ enum ADFToHTML {
                 case "em": result = "<em>\(result)</em>"
                 case "underline": result = "<u>\(result)</u>"
                 case "strike": result = "<s>\(result)</s>"
-                case "code": result = "<code style='background: #f0f0f0; padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em;'>\(result)</code>"
+                case "code": result = "<code style='background: var(--adf-inline-code-bg); padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em; color: var(--adf-text);'>\(result)</code>"
                 case "link":
                     let href = mattrs["href"] as? String ?? "#"
                     let title = mattrs["title"] as? String ?? ""
                     let t = title.isEmpty ? "" : " title=\"\(escape(title))\""
-                    result = "<a href=\"\(escape(href))\"\(t) style='color: #0052CC;'>\(result)</a>"
+                    result = "<a href=\"\(escape(href))\"\(t) style='color: var(--adf-link);'>\(result)</a>"
                 default: break
                 }
             }
@@ -139,7 +139,7 @@ enum ADFToHTML {
 
         case "mention":
             let mentionText = attrs["text"] as? String ?? ""
-            return mentionText.isEmpty ? "" : "<span style='background: #E3FCEF; padding: 1px 4px; border-radius: 3px;'>@\(escape(mentionText))</span>"
+            return mentionText.isEmpty ? "" : "<span style='background: var(--adf-mention-bg); padding: 1px 4px; border-radius: 3px; color: var(--adf-text);'>@\(escape(mentionText))</span>"
 
         case "date":
             let timestamp = attrs["timestamp"] as? String ?? ""
@@ -147,7 +147,7 @@ enum ADFToHTML {
 
         case "inlineCard":
             let url = attrs["url"] as? String ?? ""
-            return url.isEmpty ? "" : "<a href=\"\(escape(url))\" style='color: #0052CC;'>\(escape(url))</a>"
+            return url.isEmpty ? "" : "<a href=\"\(escape(url))\" style='color: var(--adf-link);'>\(escape(url))</a>"
 
         default:
             return content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
@@ -217,12 +217,12 @@ enum ADFToHTML {
 
     private static func panelBackground(_ type: String) -> String {
         switch type {
-        case "info": return "#deebff"
-        case "note": return "#eae6ff"
-        case "success": return "#d3fcef"
-        case "warning": return "#fffae6"
-        case "error": return "#ffebe6"
-        default: return "#f4f5f7"
+        case "info": return "var(--adf-panel-info)"
+        case "note": return "var(--adf-panel-note)"
+        case "success": return "var(--adf-panel-success)"
+        case "warning": return "var(--adf-panel-warning)"
+        case "error": return "var(--adf-panel-error)"
+        default: return "var(--adf-panel-default)"
         }
     }
 

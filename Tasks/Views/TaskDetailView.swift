@@ -4,6 +4,7 @@ import SwiftData
 struct TaskDetailView: View {
     let task: TaskItem
     @ObservedObject var taskStore: TaskStore
+    @Environment(\.colorScheme) private var colorScheme
 
     @State private var urgency: Int
     @State private var impact: Int
@@ -226,7 +227,8 @@ struct TaskDetailView: View {
                             html: html,
                             baseURL: KeychainHelper.load(key: "jira_url") ?? "",
                             jiraEmail: KeychainHelper.load(key: "jira_email"),
-                            jiraToken: KeychainHelper.load(key: "jira_api_token")
+                            jiraToken: KeychainHelper.load(key: "jira_api_token"),
+                            colorScheme: colorScheme
                         )
                         .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280), alignment: .topLeading)
                         .background(.regularMaterial.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
