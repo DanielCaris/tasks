@@ -77,6 +77,8 @@ final class TaskStore: ObservableObject {
                 existing.assignee = dto.assignee
                 existing.descriptionText = dto.description
                 existing.descriptionHTML = dto.descriptionHTML
+                existing.descriptionADFJSON = dto.descriptionADFJSON
+                existing.descriptionMarkdown = nil
                 existing.parentExternalId = dto.parentExternalId
                 existing.url = dto.url
                 existing.priority = dto.priority
@@ -90,6 +92,7 @@ final class TaskStore: ObservableObject {
                     assignee: dto.assignee,
                     description: dto.description,
                     descriptionHTML: dto.descriptionHTML,
+                    descriptionADFJSON: dto.descriptionADFJSON,
                     parentExternalId: dto.parentExternalId,
                     url: dto.url,
                     priority: dto.priority
@@ -111,22 +114,41 @@ final class TaskStore: ObservableObject {
     }
 
     func updateTaskInProvider(task: TaskItem, title: String?, description: String?) async {
+        errorMessage = nil
+        print("[Tasks] updateTaskInProvider: \(task.externalId), title=\(title != nil), desc=\(description != nil)")
         guard let provider else {
+            print("[Tasks] updateTaskInProvider: ERROR - no hay proveedor")
             errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
             return
         }
         do {
-            try await provider.updateIssue(externalId: task.externalId, title: title, description: description)
+            // Convertir Markdown→ADF para enviar a Jira y conservar formato
+            let descriptionADF: Any? = description.map { MarkdownToADF.convert($0) }
+            print("[Tasks] updateTaskInProvider: llamando provider.updateIssue...")
+            let adfSent = try await provider.updateIssue(externalId: task.externalId, title: title, description: descriptionADF)
+            print("[Tasks] updateTaskInProvider: API OK, actualizando modelo local")
             if let title {
                 task.title = title
             }
             if let description {
                 task.descriptionText = description
-                task.descriptionHTML = nil  // Tras edición, hasta próxima sync tendremos HTML fresco
+                task.descriptionMarkdown = description
+                if let adf = adfSent,
+                   let jsonData = try? JSONSerialization.data(withJSONObject: adf),
+                   let jsonStr = String(data: jsonData, encoding: .utf8) {
+                    task.descriptionADFJSON = jsonStr
+                    let baseURL = KeychainHelper.load(key: "jira_url") ?? ""
+                    task.descriptionHTML = ADFToHTML.convert(adf: adf, baseURL: baseURL)
+                } else {
+                    task.descriptionHTML = nil
+                    task.descriptionADFJSON = nil
+                }
             }
             task.lastSyncedAt = Date()
             try? modelContext.save()
+            print("[Tasks] updateTaskInProvider: guardado completado")
         } catch {
+            print("[Tasks] updateTaskInProvider: ERROR - \(error.localizedDescription)")
             errorMessage = error.localizedDescription
         }
     }

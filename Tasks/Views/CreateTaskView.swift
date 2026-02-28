@@ -51,7 +51,12 @@ struct CreateTaskView: View {
             }
 
             Section("Descripción") {
+                Text("Puedes usar Markdown: **negrita**, *cursiva*, [enlaces](url), listas, etc.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 TextEditor(text: $description)
+                    .font(.body)
+                    .fontDesign(.monospaced)
                     .frame(minHeight: 80)
             }
 

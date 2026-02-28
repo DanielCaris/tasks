@@ -13,6 +13,8 @@ final class TaskItem {
     var assignee: String?
     var descriptionText: String?
     var descriptionHTML: String?  // Contenido enriquecido (imágenes, links, formato) desde Jira ADF
+    var descriptionADFJSON: String?  // ADF crudo para edición Markdown bidireccional
+    var descriptionMarkdown: String?  // Markdown exacto del usuario al guardar (preserva formato)
     var parentExternalId: String?  // Si es subtarea, clave del issue padre
     var urlString: String?
     var priority: String?
@@ -29,6 +31,8 @@ final class TaskItem {
         assignee: String? = nil,
         description: String? = nil,
         descriptionHTML: String? = nil,
+        descriptionADFJSON: String? = nil,
+        descriptionMarkdown: String? = nil,
         parentExternalId: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
@@ -44,6 +48,8 @@ final class TaskItem {
         self.assignee = assignee
         self.descriptionText = description
         self.descriptionHTML = descriptionHTML
+        self.descriptionADFJSON = descriptionADFJSON
+        self.descriptionMarkdown = descriptionMarkdown
         self.parentExternalId = parentExternalId
         self.urlString = url?.absoluteString
         self.priority = priority

@@ -110,16 +110,38 @@ final class JiraProvider: IssueProviderProtocol {
         return projects.map { ProjectOption(key: $0.key, name: $0.name) }
     }
 
-    func updateIssue(externalId: String, title: String?, description: String?) async throws {
+    func updateIssue(externalId: String, title: String?, description: Any?) async throws -> [String: Any]? {
+        print("[Tasks] JiraProvider.updateIssue: \(externalId)")
         guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(externalId)") else {
+            print("[Tasks] JiraProvider.updateIssue: URL inválida")
             throw JiraError.invalidURL
         }
 
         var fields: [String: Any] = [:]
+        var adfSent: [String: Any]?
         if let title { fields["summary"] = title }
-        if let description { fields["description"] = plainTextToADF(description) }
+        if let description {
+            let adf: [String: Any]
+            if let dict = description as? [String: Any] {
+                adf = dict
+                print("[Tasks] JiraProvider.updateIssue: usando ADF proporcionado")
+            } else if let markdown = description as? String {
+                print("[Tasks] JiraProvider.updateIssue: convirtiendo Markdown→ADF...")
+                adf = MarkdownToADF.convert(markdown)
+                print("[Tasks] JiraProvider.updateIssue: ADF generado")
+            } else {
+                print("[Tasks] JiraProvider.updateIssue: tipo de descripción no soportado")
+                adfSent = nil
+                return nil
+            }
+            fields["description"] = adf
+            adfSent = adf
+        }
 
-        guard !fields.isEmpty else { return }
+        guard !fields.isEmpty else {
+            print("[Tasks] JiraProvider.updateIssue: fields vacío, omitiendo")
+            return nil
+        }
 
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
@@ -128,22 +150,30 @@ final class JiraProvider: IssueProviderProtocol {
 
         let credentials = "\(email):\(apiToken)"
         guard let credentialsData = credentials.data(using: .utf8) else {
+            print("[Tasks] JiraProvider.updateIssue: credenciales inválidas")
             throw JiraError.invalidCredentials
         }
         request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
 
         request.httpBody = try JSONSerialization.data(withJSONObject: ["fields": fields])
+        print("[Tasks] JiraProvider.updateIssue: enviando PUT...")
 
         let (data, response) = try await URLSession.shared.data(for: request)
+        print("[Tasks] JiraProvider.updateIssue: respuesta recibida")
 
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("[Tasks] JiraProvider.updateIssue: respuesta no HTTP")
             throw JiraError.invalidResponse
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
             let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            print("[Tasks] JiraProvider.updateIssue: HTTP \(httpResponse.statusCode) - \(message)")
             throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
         }
+        print("[Tasks] JiraProvider.updateIssue: OK")
+        return adfSent
     }
 
     func getTransitions(externalId: String) async throws -> [TransitionOption] {
@@ -243,7 +273,7 @@ final class JiraProvider: IssueProviderProtocol {
             "issuetype": ["name": "Task"]
         ]
         if let description, !description.isEmpty {
-            fields["description"] = plainTextToADF(description)
+            fields["description"] = MarkdownToADF.convert(description)
         }
 
         var request = URLRequest(url: url)
@@ -326,6 +356,7 @@ final class JiraProvider: IssueProviderProtocol {
         let imageIds = imageAttachmentIdsInOrder(attachments: attachments)
         let mediaIdToSignedURL = await buildMediaIdToSignedURLMap(attachments: attachments)
         let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
+        let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
         return IssueDTO(
             externalId: issue.key,
             title: issue.fields.summary,
@@ -333,28 +364,13 @@ final class JiraProvider: IssueProviderProtocol {
             assignee: assigneeName,
             description: descriptionText?.isEmpty == false ? descriptionText : nil,
             descriptionHTML: descriptionHTML?.isEmpty == false ? descriptionHTML : nil,
+            descriptionADFJSON: descriptionADFJSON,
             parentExternalId: nil,
             url: browseURL,
             priority: issue.fields.priority?.name,
             createdAt: issue.fields.created,
             updatedAt: issue.fields.updated
         )
-    }
-
-    /// Convierte texto plano a Atlassian Document Format para la descripción de Jira.
-    private func plainTextToADF(_ text: String) -> [String: Any] {
-        let paragraphs = text.components(separatedBy: .newlines)
-        let content: [[String: Any]] = paragraphs.map { line in
-            [
-                "type": "paragraph",
-                "content": [["type": "text", "text": line]]
-            ]
-        }
-        return [
-            "type": "doc",
-            "version": 1,
-            "content": content.isEmpty ? [["type": "paragraph", "content": []]] : content
-        ]
     }
 
     /// Mapa filename (minúsculas) -> attachmentId para resolver imágenes ADF.
@@ -520,6 +536,7 @@ final class JiraProvider: IssueProviderProtocol {
             let imageIds = imageAttachmentIdsInOrder(attachments: attachments)
             let mediaIdToSignedURL = await buildMediaIdToSignedURLMap(attachments: attachments)
             let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
+            let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
             results.append(IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
@@ -527,6 +544,7 @@ final class JiraProvider: IssueProviderProtocol {
                 assignee: assigneeName,
                 description: descriptionText?.isEmpty == false ? descriptionText : nil,
                 descriptionHTML: descriptionHTML?.isEmpty == false ? descriptionHTML : nil,
+                descriptionADFJSON: descriptionADFJSON,
                 parentExternalId: parentKey,
                 url: url,
                 priority: issue.fields.priority?.name,

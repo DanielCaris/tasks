@@ -28,6 +28,9 @@
 		TASK019 /* ADFToHTML.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK119 /* ADFToHTML.swift */; };
 		TASK020 /* RichHTMLView.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK120 /* RichHTMLView.swift */; };
 		TASK021 /* LiquidGlassModifiers.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK122 /* LiquidGlassModifiers.swift */; };
+		TASK022 /* MarkdownToADF.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK123 /* MarkdownToADF.swift */; };
+		TASK023 /* ADFToMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK124 /* ADFToMarkdown.swift */; };
+		TASK024 /* HTMLToMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK125 /* HTMLToMarkdown.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,6 +57,9 @@
 		TASK120 /* RichHTMLView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RichHTMLView.swift; sourceTree = "<group>"; };
 		TASK121 /* Tasks.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tasks.entitlements; sourceTree = "<group>"; };
 		TASK122 /* LiquidGlassModifiers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlassModifiers.swift; sourceTree = "<group>"; };
+		TASK123 /* MarkdownToADF.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownToADF.swift; sourceTree = "<group>"; };
+		TASK124 /* ADFToMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ADFToMarkdown.swift; sourceTree = "<group>"; };
+		TASK125 /* HTMLToMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLToMarkdown.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,6 +127,9 @@
 			isa = PBXGroup;
 			children = (
 				TASK119 /* ADFToHTML.swift */,
+				TASK123 /* MarkdownToADF.swift */,
+				TASK124 /* ADFToMarkdown.swift */,
+				TASK125 /* HTMLToMarkdown.swift */,
 			);
 			path = Utils;
 			sourceTree = "<group>";
@@ -250,6 +259,9 @@
 				TASK019 /* ADFToHTML.swift in Sources */,
 				TASK020 /* RichHTMLView.swift in Sources */,
 				TASK021 /* LiquidGlassModifiers.swift in Sources */,
+				TASK022 /* MarkdownToADF.swift in Sources */,
+				TASK023 /* ADFToMarkdown.swift in Sources */,
+				TASK024 /* HTMLToMarkdown.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

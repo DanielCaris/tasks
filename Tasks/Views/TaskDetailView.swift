@@ -28,7 +28,7 @@ struct TaskDetailView: View {
         _impact = State(initialValue: task.impact ?? 1)
         _effort = State(initialValue: task.effort ?? 1)
         _editableTitle = State(initialValue: task.title)
-        _editableDescription = State(initialValue: task.descriptionText ?? "")
+        _editableDescription = State(initialValue: Self.initialDescriptionMarkdown(for: task))
     }
 
     var body: some View {
@@ -180,8 +180,9 @@ struct TaskDetailView: View {
                             .font(.subheadline)
                             .fontWeight(.medium)
                             .foregroundStyle(.secondary)
-                        if !isEditingDescription, (task.descriptionHTML != nil || (task.descriptionText ?? "").isEmpty == false) {
+                        if !isEditingDescription, (task.descriptionHTML != nil || task.descriptionADFJSON != nil || (task.descriptionText ?? "").isEmpty == false) {
                             Button {
+                                editableDescription = Self.initialDescriptionMarkdown(for: task)
                                 isEditingDescription = true
                             } label: {
                                 Label("Editar", systemImage: "pencil")
@@ -214,8 +215,13 @@ struct TaskDetailView: View {
                             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
                             .padding(.bottom, 8)
                         }
+                        Text("Puedes usar Markdown: **negrita**, *cursiva*, [enlaces](url), listas, etc.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.bottom, 4)
                         TextEditor(text: $editableDescription)
                             .font(.body)
+                            .fontDesign(.monospaced)
                             .frame(minHeight: 200)
                             .scrollContentBackground(.hidden)
                             .padding(8)
@@ -245,11 +251,11 @@ struct TaskDetailView: View {
 
                             Button("Cancelar") {
                                 isEditingDescription = false
-                                editableDescription = task.descriptionText ?? ""
+                                editableDescription = Self.initialDescriptionMarkdown(for: task)
                             }
                             .buttonStyle(.bordered)
                         }
-                    } else if let html = task.descriptionHTML, !html.isEmpty {
+                    } else if let html = Self.descriptionHTMLForDisplay(task: task), !html.isEmpty {
                         RichHTMLView(
                             html: html,
                             baseURL: KeychainHelper.load(key: "jira_url") ?? "",
@@ -268,6 +274,7 @@ struct TaskDetailView: View {
                             .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
 
                         Button {
+                            editableDescription = Self.initialDescriptionMarkdown(for: task)
                             isEditingDescription = true
                         } label: {
                             Label("Editar descripción", systemImage: "pencil")
@@ -290,25 +297,41 @@ struct TaskDetailView: View {
         .onChange(of: task.title) { _, newValue in
             if editableTitle != newValue { editableTitle = newValue }
         }
-        .onChange(of: task.descriptionText) { _, newValue in
-            if editableDescription != (newValue ?? "") { editableDescription = newValue ?? "" }
+        .onChange(of: task.descriptionText) { _, _ in
+            if !isEditingDescription { editableDescription = Self.initialDescriptionMarkdown(for: task) }
+        }
+        .onChange(of: task.descriptionADFJSON) { _, _ in
+            if !isEditingDescription { editableDescription = Self.initialDescriptionMarkdown(for: task) }
+        }
+        .onChange(of: task.descriptionMarkdown) { _, _ in
+            if !isEditingDescription { editableDescription = Self.initialDescriptionMarkdown(for: task) }
         }
     }
 
     private var hasEdits: Bool {
-        editableTitle != task.title || editableDescription != (task.descriptionText ?? "")
+        editableTitle != task.title || editableDescription != Self.initialDescriptionMarkdown(for: task)
     }
 
     private func saveToJira() {
-        guard hasEdits else { return }
+        guard hasEdits else {
+            print("[Tasks] saveToJira: sin cambios, omitiendo")
+            return
+        }
+        print("[Tasks] saveToJira: iniciando guardado para \(task.externalId)")
         isSavingToJira = true
         Task {
+            defer {
+                isSavingToJira = false
+                print("[Tasks] saveToJira: finalizado (spinner off)")
+            }
             await taskStore.updateTaskInProvider(
                 task: task,
                 title: editableTitle != task.title ? editableTitle : nil,
-                description: editableDescription != (task.descriptionText ?? "") ? editableDescription : nil
+                description: editableDescription != Self.initialDescriptionMarkdown(for: task) ? editableDescription : nil
             )
-            isSavingToJira = false
+            if (taskStore.errorMessage ?? "").isEmpty {
+                isEditingDescription = false
+            }
         }
     }
 
@@ -382,5 +405,39 @@ struct TaskDetailView: View {
 
     private func savePriority() {
         taskStore.updatePriority(task: task, urgency: urgency, impact: impact, effort: effort)
+    }
+
+    private static func initialDescriptionMarkdown(for task: TaskItem) -> String {
+        if let md = task.descriptionMarkdown, !md.isEmpty {
+            return md
+        }
+        if let json = task.descriptionADFJSON,
+           let data = json.data(using: .utf8),
+           let adf = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return ADFToMarkdown.convert(adf: adf)
+        }
+        if let html = task.descriptionHTML, !html.isEmpty {
+            return HTMLToMarkdown.convert(html)
+        }
+        return task.descriptionText ?? ""
+    }
+
+    /// HTML para mostrar la descripción renderizada (Markdown/ADF → HTML).
+    private static func descriptionHTMLForDisplay(task: TaskItem) -> String? {
+        if let html = task.descriptionHTML, !html.isEmpty {
+            return html
+        }
+        if let json = task.descriptionADFJSON,
+           let data = json.data(using: .utf8),
+           let adf = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let baseURL = KeychainHelper.load(key: "jira_url") ?? ""
+            return ADFToHTML.convert(adf: adf, baseURL: baseURL)
+        }
+        if let text = task.descriptionText, !text.isEmpty {
+            let adf = MarkdownToADF.convert(text)
+            let baseURL = KeychainHelper.load(key: "jira_url") ?? ""
+            return ADFToHTML.convert(adf: adf, baseURL: baseURL)
+        }
+        return nil
     }
 }

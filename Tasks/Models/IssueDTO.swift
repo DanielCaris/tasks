@@ -15,6 +15,7 @@ struct IssueDTO: Identifiable {
     let assignee: String?
     let description: String?
     let descriptionHTML: String?  // Contenido enriquecido desde Jira ADF (imágenes, links, etc.)
+    let descriptionADFJSON: String?  // ADF crudo para edición Markdown bidireccional
     let parentExternalId: String?  // Si es subtarea, clave del issue padre
     let url: URL?
     let priority: String?
@@ -30,6 +31,7 @@ struct IssueDTO: Identifiable {
         assignee: String? = nil,
         description: String? = nil,
         descriptionHTML: String? = nil,
+        descriptionADFJSON: String? = nil,
         parentExternalId: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
@@ -42,6 +44,7 @@ struct IssueDTO: Identifiable {
         self.assignee = assignee
         self.description = description
         self.descriptionHTML = descriptionHTML
+        self.descriptionADFJSON = descriptionADFJSON
         self.parentExternalId = parentExternalId
         self.url = url
         self.priority = priority

@@ -25,7 +25,7 @@ enum ADFToHTML {
         let fallback = imageAttachmentIdsInOrder.isEmpty ? nil : AttachmentFallback(ids: imageAttachmentIdsInOrder)
         let html = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined(separator: "\n")
         return """
-        <div class="adf-content" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.5; color: var(--adf-text);">
+        <div class="adf-content" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.5; color: var(--adf-text); margin: 0; padding: 0;">
         \(html)
         </div>
         """
@@ -43,48 +43,49 @@ enum ADFToHTML {
 
         case "paragraph":
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
-            return "<p style='margin: 0 0 0.5em;'>\(inner.isEmpty ? "<br>" : inner)</p>"
+            if inner.isEmpty { return nil }
+            return "<p style='margin: 0 0 0.35em;'>\(inner)</p>"
 
         case "heading":
             let level = attrs["level"] as? Int ?? 1
             let tag = "h\(min(max(level, 1), 6))"
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
-            return "<\(tag) style='margin: 0.75em 0 0.25em; font-size: \(headingSize(level))em;'>\(inner)</\(tag)>"
+            return "<\(tag) style='margin: 0.5em 0 0.2em; font-size: \(headingSize(level))em;'>\(inner)</\(tag)>"
 
         case "bulletList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<ul style='margin: 0.5em 0; padding-left: 1.5em;'>\(items)</ul>"
+            return "<ul style='margin: 0.25em 0; padding-left: 1.5em;'>\(items)</ul>"
 
         case "orderedList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<ol style='margin: 0.5em 0; padding-left: 1.5em;'>\(items)</ol>"
+            return "<ol style='margin: 0.25em 0; padding-left: 1.5em;'>\(items)</ol>"
 
         case "listItem":
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<li style='margin: 0.25em 0;'>\(inner)</li>"
+            return "<li style='margin: 0.1em 0;'>\(inner)</li>"
 
         case "blockquote":
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<blockquote style='margin: 0.5em 0; padding-left: 1em; border-left: 4px solid var(--adf-border); color: var(--adf-secondary);'>\(inner)</blockquote>"
+            return "<blockquote style='margin: 0.25em 0; padding-left: 1em; border-left: 4px solid var(--adf-border); color: var(--adf-secondary);'>\(inner)</blockquote>"
 
         case "codeBlock":
             let lang = attrs["language"] as? String ?? ""
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
             let langAttr = lang.isEmpty ? "" : " data-language=\"\(escape(lang))\""
-            return "<pre style='margin: 0.5em 0; padding: 12px; background: var(--adf-code-bg); border-radius: 6px; overflow-x: auto; font-family: \"SF Mono\", Monaco, monospace; font-size: 13px; color: var(--adf-text);'\(langAttr)><code>\(inner)</code></pre>"
+            return "<pre style='margin: 0.25em 0; padding: 12px; background: var(--adf-code-bg); border-radius: 6px; overflow-x: auto; font-family: \"SF Mono\", Monaco, monospace; font-size: 13px; color: var(--adf-text);'\(langAttr)><code>\(inner)</code></pre>"
 
         case "rule":
-            return "<hr style='margin: 1em 0; border: none; border-top: 1px solid var(--adf-border);'>"
+            return "<hr style='margin: 0.5em 0; border: none; border-top: 1px solid var(--adf-border);'>"
 
         case "panel":
             let panelType = attrs["panelType"] as? String ?? "info"
             let bg = panelBackground(panelType)
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<div style='margin: 0.5em 0; padding: 12px; background: \(bg); border-radius: 6px;'>\(inner)</div>"
+            return "<div style='margin: 0.25em 0; padding: 12px; background: \(bg); border-radius: 6px;'>\(inner)</div>"
 
         case "table":
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<table style='border-collapse: collapse; width: 100%; margin: 0.5em 0;'><tbody>\(inner)</tbody></table>"
+            return "<table style='border-collapse: collapse; width: 100%; margin: 0.25em 0;'><tbody>\(inner)</tbody></table>"
 
         case "tableRow":
             let cells = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
@@ -97,7 +98,7 @@ enum ADFToHTML {
 
         case "mediaSingle", "mediaGroup":
             let mediaHTML = content.compactMap { mediaToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<div style='margin: 0.5em 0;'>\(mediaHTML)</div>"
+            return "<div style='margin: 0.25em 0;'>\(mediaHTML)</div>"
 
         case "media":
             return mediaToHTML(node, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL)
@@ -105,7 +106,7 @@ enum ADFToHTML {
         case "expand":
             let title = attrs["title"] as? String ?? ""
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<details style='margin: 0.5em 0;'><summary style='cursor: pointer; font-weight: 600;'>\(escape(title.isEmpty ? "▼" : title))</summary><div style='margin-top: 0.5em;'>\(inner)</div></details>"
+            return "<details style='margin: 0.25em 0;'><summary style='cursor: pointer; font-weight: 600;'>\(escape(title.isEmpty ? "▼" : title))</summary><div style='margin-top: 0.25em;'>\(inner)</div></details>"
 
         default:
             return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined().isEmpty ? nil : content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
