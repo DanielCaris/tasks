@@ -85,7 +85,7 @@ struct SettingsView: View {
             testMessage = nil
             testSuccess = nil
             loadAllStatusOrders()
-            statusColors = KeychainHelper.loadStatusColors()
+            statusColors = taskStore.statusColors
         }
         .onChange(of: jql) { _, _ in applyChanges() }
         .onChange(of: jiraURL) { _, _ in applyChanges() }
@@ -186,17 +186,16 @@ struct SettingsView: View {
                     ForEach(statusesForColors, id: \.self) { status in
                         HStack {
                             Circle()
-                                .fill(Color(hex: statusColors[status] ?? "808080"))
+                                .fill(Color(hex: KeychainHelper.statusColorHex(for: status)))
                                 .frame(width: 10, height: 10)
                             Text(status)
                                 .font(.subheadline)
                             Spacer()
                             ColorPicker("", selection: Binding(
-                                get: { Color(hex: statusColors[status] ?? "808080") },
+                                get: { Color(hex: KeychainHelper.statusColorHex(for: status)) },
                                 set: { newColor in
-                                    statusColors[status] = newColor.hexString
-                                    KeychainHelper.saveStatusColors(statusColors)
-                                    taskStore.reloadStatusColors()
+                                    taskStore.setStatusColor(status, hex: newColor.hexString)
+                                    statusColors = taskStore.statusColors
                                 }
                             ))
                             .labelsHidden()
@@ -238,7 +237,7 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .onAppear {
             loadAllStatusOrders()
-            statusColors = KeychainHelper.loadStatusColors()
+            statusColors = taskStore.statusColors
         }
     }
 

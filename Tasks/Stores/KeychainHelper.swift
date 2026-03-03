@@ -82,11 +82,45 @@ enum KeychainHelper {
     /// Colores por estado (clave: nombre del status, valor: hex RRGGBB).
     private static let statusColorsKey = prefix + "status_colors"
 
+    /// Colores por defecto para estados comunes de Jira (inglés y español).
+    static let defaultStatusColors: [String: String] = [
+        "To Do": "5C6BC0",
+        "Por hacer": "5C6BC0",
+        "Open": "5C6BC0",
+        "Abierto": "5C6BC0",
+        "In Progress": "F9A825",
+        "En progreso": "F9A825",
+        "In Development": "F9A825",
+        "Done": "43A047",
+        "Hecho": "43A047",
+        "Resolved": "43A047",
+        "Resuelto": "43A047",
+        "Closed": "43A047",
+        "Cerrado": "43A047",
+        "Blocked": "E53935",
+        "Bloqueado": "E53935",
+        "Cancelled": "757575",
+        "Cancelado": "757575",
+        "Review": "7E57C2",
+        "Revisión": "7E57C2",
+        "In Review": "7E57C2",
+        "Code Review": "7E57C2",
+        "Testing": "26C6DA",
+        "QA": "26C6DA",
+    ]
+
     static func saveStatusColors(_ colors: [String: String]) {
         suite.set(colors, forKey: statusColorsKey)
     }
 
     static func loadStatusColors() -> [String: String] {
         suite.dictionary(forKey: statusColorsKey) as? [String: String] ?? [:]
+    }
+
+    /// Color efectivo para un estado: primero el guardado por el usuario, luego el por defecto, luego gris.
+    static func statusColorHex(for status: String) -> String {
+        let saved = loadStatusColors()[status]
+        if let hex = saved, !hex.isEmpty { return hex }
+        return defaultStatusColors[status] ?? "808080"
     }
 }

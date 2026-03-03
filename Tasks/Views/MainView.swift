@@ -84,6 +84,11 @@ struct MainView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(taskStore: taskStore)
         }
+        .onChange(of: showingSettings) { _, isShowing in
+            if !isShowing {
+                taskStore.reloadStatusColors()
+            }
+        }
         .sheet(isPresented: $showingCreateTask) {
             CreateTaskView(taskStore: taskStore)
         }

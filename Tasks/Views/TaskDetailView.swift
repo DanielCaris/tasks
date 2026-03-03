@@ -192,7 +192,8 @@ struct TaskDetailView: View {
     }
 
     private func headerSection(availableHeight: CGFloat = 600) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let _ = taskStore.statusColors
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 breadcrumbView
                 if let url = task.url {
@@ -227,27 +228,27 @@ struct TaskDetailView: View {
 
             Group {
                 if isEditingTitle {
-                    TextField("Título", text: $editableTitle)
-                        .font(.title2)
-                        .fontWeight(.medium)
-                        .textFieldStyle(.plain)
-                        .focused($isTitleFocused)
-                        .onSubmit {
-                            isEditingTitle = false
-                            if editableTitle != task.title { saveToJira() }
-                        }
-                } else {
-                    Text(editableTitle)
-                        .font(.title2)
-                        .fontWeight(.medium)
-                        .foregroundStyle(Color(hex: Color.primary.hexString))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture(count: 1) {
-                            isEditingTitle = true
-                            DispatchQueue.main.async { isTitleFocused = true }
-                        }
-                }
+                        TextField("Título", text: $editableTitle)
+                            .font(.title2)
+                            .fontWeight(.medium)
+                            .textFieldStyle(.plain)
+                            .focused($isTitleFocused)
+                            .onSubmit {
+                                isEditingTitle = false
+                                if editableTitle != task.title { saveToJira() }
+                            }
+                    } else {
+                        Text(editableTitle)
+                            .font(.title2)
+                            .fontWeight(.medium)
+                            .foregroundStyle(Color(hex: Color.primary.hexString))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 1) {
+                                isEditingTitle = true
+                                DispatchQueue.main.async { isTitleFocused = true }
+                            }
+                    }
             }
             .onChange(of: isTitleFocused) { _, focused in
                 if !focused {
@@ -259,9 +260,9 @@ struct TaskDetailView: View {
             HStack(spacing: 8) {
                 if availableTransitions.isEmpty && !isLoadingTransitions {
                     HStack(spacing: 4) {
-                        Image(systemName: "circle.fill")
-                            .font(.caption)
-                            .foregroundStyle(taskStore.statusColor(for: task.status))
+                        Circle()
+                            .fill(taskStore.statusColor(for: task.status))
+                            .frame(width: 10, height: 10)
                         Text(task.status)
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -273,34 +274,32 @@ struct TaskDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Menu {
-                        ForEach(availableTransitions) { transition in
-                            Button {
-                                performTransition(transition)
-                            } label: {
-                                Text(transition.targetStatusName)
-                            }
-                            .disabled(isTransitioning)
+                    HStack(spacing: 4) {
+                        if isTransitioning {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Circle()
+                                .fill(taskStore.statusColor(for: task.status))
+                                .frame(width: 10, height: 10)
                         }
-                    } label: {
-                        HStack(spacing: 4) {
-                            if isTransitioning {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "circle.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(taskStore.statusColor(for: task.status))
+                        Menu {
+                            ForEach(availableTransitions) { transition in
+                                Button {
+                                    performTransition(transition)
+                                } label: {
+                                    Text(transition.targetStatusName)
+                                }
+                                .disabled(isTransitioning)
                             }
+                        } label: {
                             Text(task.status)
                                 .font(.caption)
-                            Image(systemName: "chevron.down")
-                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
-                        .foregroundStyle(.secondary)
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
                     }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
                 }
 
                 if let assignee = task.assignee {
@@ -694,10 +693,10 @@ struct TaskDetailView: View {
                                     .font(.body)
                                     .lineLimit(1)
                                 Spacer()
-                                HStack(spacing: 4) {
-                                    Image(systemName: "circle.fill")
-                                        .font(.caption2)
-                                        .foregroundStyle(taskStore.statusColor(for: sub.status))
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(taskStore.statusColor(for: sub.status))
+                                        .frame(width: 10, height: 10)
                                     Text(sub.status)
                                         .font(.caption)
                                         .foregroundStyle(.secondary)

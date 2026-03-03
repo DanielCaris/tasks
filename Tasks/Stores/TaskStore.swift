@@ -62,17 +62,26 @@ final class TaskStore: ObservableObject {
         return order.firstIndex(of: status) ?? Int.max
     }
 
-    /// Versión de colores; al incrementarse, las vistas que usan statusColor se actualizan.
-    @Published private(set) var statusColorsVersion: Int = 0
+    /// Colores por estado guardados por el usuario. Las vistas observan esto para actualizarse.
+    @Published var statusColors: [String: String] = [:]
 
-    /// Color configurado para un estado, o gris por defecto.
+    /// Color configurado para un estado: primero el guardado, luego el por defecto, luego gris.
     func statusColor(for status: String) -> Color {
-        let hex = KeychainHelper.loadStatusColors()[status] ?? "808080"
+        let hex = statusColors[status]
+            ?? KeychainHelper.defaultStatusColors[status]
+            ?? "808080"
         return Color(hex: hex)
     }
 
+    func setStatusColor(_ status: String, hex: String) {
+        var updated = statusColors
+        updated[status] = hex
+        statusColors = updated
+        KeychainHelper.saveStatusColors(updated)
+    }
+
     func reloadStatusColors() {
-        statusColorsVersion += 1
+        statusColors = KeychainHelper.loadStatusColors()
     }
 
     var providerId: String? {
@@ -83,6 +92,7 @@ final class TaskStore: ObservableObject {
         self.modelContext = modelContext
         selectedStatusFilters = Set(KeychainHelper.loadStatusFilters())
         excludedSubtaskStatuses = Set(KeychainHelper.loadSubtaskStatusExclusions())
+        statusColors = KeychainHelper.loadStatusColors()
     }
 
     func setSubtaskStatusExclusions(_ exclusions: Set<String>) {
