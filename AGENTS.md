@@ -10,6 +10,7 @@
 | `make release` | Alias de `make dist` |
 | `make run` | Builds and launches the Tasks app |
 | `make run-attached` | Builds and runs the app in the terminal (logs visibles, como en Xcode) |
+| `make test` | Runs unit tests (TasksTests) |
 | `make clean` | Cleans the build artifacts |
 
 ## Running the app after changes

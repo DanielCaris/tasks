@@ -26,11 +26,7 @@ enum ADFToHTML {
         let fallback = imageAttachmentIdsInOrder.isEmpty ? nil : AttachmentFallback(ids: imageAttachmentIdsInOrder)
         var taskIndex = 0
         let html = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined(separator: "\n")
-        return """
-        <div class="adf-content" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.5; color: var(--adf-text); margin: 0; padding: 0;">
-        \(html)
-        </div>
-        """
+        return "<div class=\"adf-content\">\n\(html)\n</div>"
     }
 
     private static func nodeToHTML(_ node: [String: Any], baseURL: String, attachmentMap: [String: String] = [:], fallback: AttachmentFallback? = nil, mediaIdToSignedURL: [String: String] = [:], interactiveCheckboxes: Bool = false, taskIndex: inout Int) -> String? {
@@ -46,17 +42,17 @@ enum ADFToHTML {
         case "paragraph":
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
             if inner.isEmpty { return "<br>" }
-            return "<p style='margin: 0 0 0.35em;'>\(inner)</p>"
+            return "<p>\(inner)</p>"
 
         case "heading":
             let level = attrs["level"] as? Int ?? 1
             let tag = "h\(min(max(level, 1), 6))"
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
-            return "<\(tag) style='margin: 0.5em 0 0.2em; font-size: \(headingSize(level))em; font-weight: 500;'>\(inner)</\(tag)>"
+            return "<\(tag)>\(inner)</\(tag)>"
 
         case "taskList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<ul style='margin: 0.25em 0; padding-left: 1em; list-style: none;'>\(items)</ul>"
+            return "<ul class=\"adf-task-list\">\(items)</ul>"
 
         case "taskItem":
             let state = (attrs["state"] as? String) ?? "TODO"
@@ -65,11 +61,9 @@ enum ADFToHTML {
             taskIndex += 1
             let disabledAttr = interactiveCheckboxes ? "" : " disabled"
             let dataAttr = interactiveCheckboxes ? " data-task-index=\"\(idx)\"" : ""
-            let checkbox = "<span style='display:inline-flex;align-items:center;min-height:1.5em;'>" +
-                "<input type='checkbox' class='adf-task-checkbox'\(dataAttr)\(disabledAttr) \(checked ? "checked" : "") style='margin:0 8px 0 0;cursor:pointer;'>" +
-                "</span>"
+            let checkbox = "<span class=\"adf-task-checkbox-wrap\"><input type=\"checkbox\" class=\"adf-task-checkbox\"\(dataAttr)\(disabledAttr) \(checked ? "checked" : "")></span>"
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
-            return "<li style='margin: 0.2em 0; display: flex; align-items: flex-start;'>\(checkbox)<span style='flex: 1; line-height: 1.5;'>\(inner)</span></li>"
+            return "<li>\(checkbox)<span class=\"adf-task-text\">\(inner)</span></li>"
 
         case "blockTaskItem":
             let state = (attrs["state"] as? String) ?? "TODO"
@@ -78,46 +72,43 @@ enum ADFToHTML {
             taskIndex += 1
             let disabledAttr = interactiveCheckboxes ? "" : " disabled"
             let dataAttr = interactiveCheckboxes ? " data-task-index=\"\(idx)\"" : ""
-            let checkbox = "<span style='display:inline-flex;align-items:center;min-height:1.5em;'>" +
-                "<input type='checkbox' class='adf-task-checkbox'\(dataAttr)\(disabledAttr) \(checked ? "checked" : "") style='margin:0 8px 0 0;cursor:pointer;'>" +
-                "</span>"
+            let checkbox = "<span class=\"adf-task-checkbox-wrap\"><input type=\"checkbox\" class=\"adf-task-checkbox\"\(dataAttr)\(disabledAttr) \(checked ? "checked" : "")></span>"
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<li style='margin: 0.2em 0; display: flex; align-items: flex-start;'>\(checkbox)<span style='flex: 1;'>\(inner)</span></li>"
+            return "<li>\(checkbox)<span class=\"adf-task-text\">\(inner)</span></li>"
 
         case "bulletList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<ul style='margin: 0.25em 0; padding-left: 1em;'>\(items)</ul>"
+            return "<ul class=\"adf-bullet-list\">\(items)</ul>"
 
         case "orderedList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<ol style='margin: 0.25em 0; padding-left: 1em;'>\(items)</ol>"
+            return "<ol>\(items)</ol>"
 
         case "listItem":
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<li style='margin: 0.1em 0;'>\(inner)</li>"
+            return "<li>\(inner)</li>"
 
         case "blockquote":
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<blockquote style='margin: 0.25em 0; padding-left: 1em; border-left: 4px solid var(--adf-border); color: var(--adf-secondary);'>\(inner)</blockquote>"
+            return "<blockquote>\(inner)</blockquote>"
 
         case "codeBlock":
             let lang = attrs["language"] as? String ?? ""
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
             let langAttr = lang.isEmpty ? "" : " data-language=\"\(escape(lang))\""
-            return "<pre style='margin: 0.25em 0; padding: 12px; background: var(--adf-code-bg); border-radius: 6px; overflow-x: auto; font-family: \"SF Mono\", Monaco, monospace; font-size: 13px; color: var(--adf-text);'\(langAttr)><code>\(inner)</code></pre>"
+            return "<pre\(langAttr)><code>\(inner)</code></pre>"
 
         case "rule":
-            return "<hr style='margin: 0.5em 0; border: none; border-top: 1px solid var(--adf-border);'>"
+            return "<hr>"
 
         case "panel":
             let panelType = attrs["panelType"] as? String ?? "info"
-            let bg = panelBackground(panelType)
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<div style='margin: 0.25em 0; padding: 12px; background: \(bg); border-radius: 6px;'>\(inner)</div>"
+            return "<div class=\"adf-panel adf-panel-\(panelType)\">\(inner)</div>"
 
         case "table":
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<table style='border-collapse: collapse; width: 100%; margin: 0.25em 0;'><tbody>\(inner)</tbody></table>"
+            return "<table><tbody>\(inner)</tbody></table>"
 
         case "tableRow":
             let cells = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
@@ -126,11 +117,11 @@ enum ADFToHTML {
         case "tableHeader", "tableCell":
             let cellTag = type == "tableHeader" ? "th" : "td"
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<\(cellTag) style='border: 1px solid var(--adf-border); padding: 8px;'>\(inner)</\(cellTag)>"
+            return "<\(cellTag)>\(inner)</\(cellTag)>"
 
         case "mediaSingle", "mediaGroup":
             let mediaHTML = content.compactMap { mediaToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
-            return "<div style='margin: 0.25em 0;'>\(mediaHTML)</div>"
+            return "<div class=\"adf-media\">\(mediaHTML)</div>"
 
         case "media":
             return mediaToHTML(node, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL)
@@ -138,7 +129,7 @@ enum ADFToHTML {
         case "expand":
             let title = attrs["title"] as? String ?? ""
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<details style='margin: 0.25em 0;'><summary style='cursor: pointer; font-weight: 500;'>\(escape(title.isEmpty ? "▼" : title))</summary><div style='margin-top: 0.25em;'>\(inner)</div></details>"
+            return "<details><summary>\(escape(title.isEmpty ? "▼" : title))</summary><div class=\"adf-expand-body\">\(inner)</div></details>"
 
         default:
             return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined().isEmpty ? nil : content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
@@ -162,12 +153,12 @@ enum ADFToHTML {
                 case "em": result = "<em>\(result)</em>"
                 case "underline": result = "<u>\(result)</u>"
                 case "strike": result = "<s>\(result)</s>"
-                case "code": result = "<code style='background: var(--adf-inline-code-bg); padding: 2px 4px; border-radius: 3px; font-family: monospace; font-size: 0.9em; color: var(--adf-text);'>\(result)</code>"
+                case "code": result = "<code class=\"adf-inline-code\">\(result)</code>"
                 case "link":
                     let href = mattrs["href"] as? String ?? "#"
                     let title = mattrs["title"] as? String ?? ""
                     let t = title.isEmpty ? "" : " title=\"\(escape(title))\""
-                    result = "<a href=\"\(escape(href))\"\(t) style='color: var(--adf-link);'>\(result)</a>"
+                    result = "<a href=\"\(escape(href))\"\(t)>\(result)</a>"
                 default: break
                 }
             }
@@ -187,7 +178,7 @@ enum ADFToHTML {
 
         case "mention":
             let mentionText = attrs["text"] as? String ?? ""
-            return mentionText.isEmpty ? "" : "<span style='background: var(--adf-mention-bg); padding: 1px 4px; border-radius: 3px; color: var(--adf-text);'>@\(escape(mentionText))</span>"
+            return mentionText.isEmpty ? "" : "<span class=\"adf-mention\">@\(escape(mentionText))</span>"
 
         case "date":
             let timestamp = attrs["timestamp"] as? String ?? ""
@@ -195,7 +186,7 @@ enum ADFToHTML {
 
         case "inlineCard":
             let url = attrs["url"] as? String ?? ""
-            return url.isEmpty ? "" : "<a href=\"\(escape(url))\" style='color: var(--adf-link);'>\(escape(url))</a>"
+            return url.isEmpty ? "" : "<a href=\"\(escape(url))\">\(escape(url))</a>"
 
         default:
             return content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
@@ -233,36 +224,16 @@ enum ADFToHTML {
         } else if !mediaId.isEmpty {
             imgSrc = "jira-image://\(mediaId)"
         } else {
-            return "<div style='padding:24px;background:var(--adf-code-bg);border-radius:6px;color:var(--adf-secondary);font-size:13px;'>[Imagen no disponible]</div>"
+            return "<div class=\"adf-media-unavailable\">[Imagen no disponible]</div>"
         }
         let linkWrap = href != nil ? "<a href=\"\(escape(href!))\" target=\"_blank\">" : ""
         let linkEnd = href != nil ? "</a>" : ""
         let browseURL = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        return "\(linkWrap)<img src=\"\(escape(imgSrc))\" alt=\"\(escape(alt))\" width=\"\(min(width, 600))\" style='max-width:100%;height:auto;border-radius:4px;' data-fallback=\"\(escape(browseURL))\" />\(linkEnd)"
+        return "\(linkWrap)<img src=\"\(escape(imgSrc))\" alt=\"\(escape(alt))\" width=\"\(min(width, 600))\" class=\"adf-img\" data-fallback=\"\(escape(browseURL))\" />\(linkEnd)"
     }
 
     private static func taskBrowseURL(baseURL: String) -> String {
         baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    }
-
-    private static func headingSize(_ level: Int) -> Double {
-        switch level {
-        case 1: return 1.25
-        case 2: return 1.1
-        case 3: return 1.0
-        default: return 0.9
-        }
-    }
-
-    private static func panelBackground(_ type: String) -> String {
-        switch type {
-        case "info": return "var(--adf-panel-info)"
-        case "note": return "var(--adf-panel-note)"
-        case "success": return "var(--adf-panel-success)"
-        case "warning": return "var(--adf-panel-warning)"
-        case "error": return "var(--adf-panel-error)"
-        default: return "var(--adf-panel-default)"
-        }
     }
 
     private static func emojiFromShortName(_ name: String) -> String {

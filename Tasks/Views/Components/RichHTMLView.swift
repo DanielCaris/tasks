@@ -50,15 +50,57 @@ struct RichHTMLView: NSViewRepresentable {
         context.coordinator.onCheckboxToggle = onCheckboxToggle
         context.coordinator.onDoubleClick = onDoubleClick
 
+        let adfBorder = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)"
+        let adfSecondary = isDark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.6)"
+        let adfCodeBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)"
+        let adfInlineCodeBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)"
+        let adfMentionBg = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.06)"
+        let adfPanelBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.04)"
+
         let fullHTML = """
         <!DOCTYPE html>
         <html lang="es">
         <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
         <meta id="dark-mode" content="\(isDark ? "1" : "0")">
         <style>
+        :root{--adf-text:\(textColor);--adf-border:\(adfBorder);--adf-secondary:\(adfSecondary);--adf-code-bg:\(adfCodeBg);--adf-inline-code-bg:\(adfInlineCodeBg);--adf-link:\(linkColor);--adf-mention-bg:\(adfMentionBg);--adf-panel-info:\(adfPanelBg);--adf-panel-note:\(adfPanelBg);--adf-panel-success:\(adfPanelBg);--adf-panel-warning:\(adfPanelBg);--adf-panel-error:\(adfPanelBg);--adf-panel-default:\(adfPanelBg);}
         *{color:\(textColor) !important;}
         a{color:\(linkColor) !important;}
         html,body{margin:0;padding:0;background:transparent !important;}
+        .adf-content{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;font-size:14px;line-height:1.5; color:var(--adf-text);margin:0;padding:0;}
+        .adf-content p{margin:0 0 0.15em;}
+        .adf-content h1{margin:0.25em 0 0.05em;font-size:1.25em;font-weight:500;}
+        .adf-content h2{margin:0.25em 0 0.05em;font-size:1.1em;font-weight:500;}
+        .adf-content h3{margin:0.25em 0 0.05em;font-size:1em;font-weight:500;}
+        .adf-content h4,.adf-content h5,.adf-content h6{margin:0.25em 0 0.05em;font-size:0.9em;font-weight:500;}
+        .adf-content hr{margin:0.2em 0;border:none;border-top:1px solid var(--adf-border);}
+        .adf-content blockquote{margin:0.25em 0;padding-left:1em;border-left:4px solid var(--adf-border);color:var(--adf-secondary);}
+        .adf-content pre{margin:0.25em 0;padding:12px;background:var(--adf-code-bg);border-radius:6px;overflow-x:auto;font-family:"SF Mono",Monaco,monospace;font-size:13px;color:var(--adf-text);}
+        .adf-content ol{margin:0.25em 0;padding-left:1.6em;list-style-type:decimal;list-style-position:outside;}
+        .adf-content ul.adf-task-list{margin:0.25em 0;padding-left:0;margin-left:0;list-style:none;}
+        .adf-content ul.adf-task-list>li{margin:0.2em 0;display:flex;align-items:flex-start;}
+        .adf-content .adf-task-checkbox-wrap{display:inline-flex;align-items:center;min-height:1.5em;}
+        .adf-content .adf-task-checkbox{margin:0 8px 0 0;cursor:pointer;}
+        .adf-content .adf-task-text{flex:1;line-height:1.5;}
+        .adf-content ul.adf-bullet-list{margin:0.25em 0;padding-left:1.4em;list-style-type:disc;list-style-position:outside;}
+        .adf-content ul.adf-bullet-list>li,.adf-content ol>li{margin:0.1em 0;}
+        .adf-content .adf-inline-code{background:var(--adf-inline-code-bg);padding:2px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;color:var(--adf-text);}
+        .adf-content .adf-mention{background:var(--adf-mention-bg);padding:1px 4px;border-radius:3px;color:var(--adf-text);}
+        .adf-content .adf-panel{margin:0.25em 0;padding:12px;border-radius:6px;}
+        .adf-content .adf-panel-info{background:var(--adf-panel-info);}
+        .adf-content .adf-panel-note{background:var(--adf-panel-note);}
+        .adf-content .adf-panel-success{background:var(--adf-panel-success);}
+        .adf-content .adf-panel-warning{background:var(--adf-panel-warning);}
+        .adf-content .adf-panel-error{background:var(--adf-panel-error);}
+        .adf-content .adf-panel-default{background:var(--adf-panel-default);}
+        .adf-content table{border-collapse:collapse;width:100%;margin:0.25em 0;}
+        .adf-content th,.adf-content td{border:1px solid var(--adf-border);padding:8px;}
+        .adf-content .adf-media{margin:0.25em 0;}
+        .adf-content .adf-media-unavailable{padding:24px;background:var(--adf-code-bg);border-radius:6px;color:var(--adf-secondary);font-size:13px;}
+        .adf-content .adf-img{max-width:100%;height:auto;border-radius:4px;}
+        .adf-content details{margin:0.25em 0;}
+        .adf-content summary{cursor:pointer;font-weight:500;}
+        .adf-content .adf-expand-body{margin-top:0.25em;}
         </style>
         </head>
         <body>\(html)</body>

@@ -45,12 +45,19 @@ enum MarkdownToADF {
                 continue
             }
 
-            // Block-level image: ![alt](url) con http → párrafo con enlace
+            // Block-level image: ![alt](url) con http → mediaSingle con media type link
             if let (alt, imgUrl) = parseBlockImage(trimmed), !imgUrl.isEmpty, imgUrl.hasPrefix("http") {
                 content.append([
-                    "type": "paragraph",
+                    "type": "mediaSingle",
                     "content": [
-                        ["type": "text", "text": alt, "marks": [["type": "link", "attrs": ["href": imgUrl]]]]
+                        [
+                            "type": "media",
+                            "attrs": [
+                                "type": "link",
+                                "url": imgUrl,
+                                "alt": alt
+                            ]
+                        ]
                     ]
                 ])
                 i += 1
@@ -406,6 +413,45 @@ enum MarkdownToADF {
                 }
             }
 
+            // Strikethrough: ~~text~~
+            if s[i] == "~", let next = s.index(i, offsetBy: 1, limitedBy: s.endIndex), next < s.endIndex, s[next] == "~" {
+                if let (strike, after) = parseDelimited(s, from: s.index(after: next), open: "~~", close: "~~") {
+                    result.append([
+                        "type": "text",
+                        "text": strike,
+                        "marks": [["type": "strike"]]
+                    ])
+                    i = after
+                    continue
+                }
+            }
+
+            // Bold + italic: ***text*** or ___text___ (debe ir antes de ** y __)
+            if s[i] == "*", let idx2 = s.index(i, offsetBy: 1, limitedBy: s.endIndex), idx2 < s.endIndex, s[idx2] == "*",
+               let idx3 = s.index(idx2, offsetBy: 1, limitedBy: s.endIndex), idx3 < s.endIndex, s[idx3] == "*" {
+                if let (boldItalic, after) = parseDelimited(s, from: s.index(after: idx3), open: "***", close: "***") {
+                    result.append([
+                        "type": "text",
+                        "text": boldItalic,
+                        "marks": [["type": "strong"], ["type": "em"]]
+                    ])
+                    i = after
+                    continue
+                }
+            }
+            if s[i] == "_", let idx2 = s.index(i, offsetBy: 1, limitedBy: s.endIndex), idx2 < s.endIndex, s[idx2] == "_",
+               let idx3 = s.index(idx2, offsetBy: 1, limitedBy: s.endIndex), idx3 < s.endIndex, s[idx3] == "_" {
+                if let (boldItalic, after) = parseDelimited(s, from: s.index(after: idx3), open: "___", close: "___") {
+                    result.append([
+                        "type": "text",
+                        "text": boldItalic,
+                        "marks": [["type": "strong"], ["type": "em"]]
+                    ])
+                    i = after
+                    continue
+                }
+            }
+
             // Bold: **text** or __text__
             if s[i] == "*", let next = s.index(i, offsetBy: 1, limitedBy: s.endIndex), next < s.endIndex, s[next] == "*" {
                 if let (bold, after) = parseDelimited(s, from: s.index(after: next), open: "**", close: "**") {
@@ -530,7 +576,7 @@ enum MarkdownToADF {
         var i = start
         while i < s.endIndex {
             let c = s[i]
-            if c == "[" || c == "`" || c == "*" || c == "_" || c == "!" { return i }
+            if c == "[" || c == "`" || c == "*" || c == "_" || c == "!" || c == "~" { return i }
             i = s.index(after: i)
         }
         return i

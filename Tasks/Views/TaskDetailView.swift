@@ -503,10 +503,8 @@ struct TaskDetailView: View {
                 )
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) {
-                    if includeBackground {
-                        editableDescription = Self.initialDescriptionMarkdown(for: task)
-                        isEditingDescription = true
-                    }
+                    editableDescription = Self.initialDescriptionMarkdown(for: task)
+                    isEditingDescription = true
                 }
         }
         .frame(height: height)

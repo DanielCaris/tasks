@@ -34,6 +34,7 @@
 		TASK025 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK126 /* AppLog.swift */; };
 		TASK027 /* ADFUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK127 /* ADFUtils.swift */; };
 		TASK028 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK128 /* Color+Hex.swift */; };
+		TEST001 /* MarkdownToADFTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TEST101 /* MarkdownToADFTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -66,10 +67,19 @@
 		TASK126 /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
 		TASK127 /* ADFUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ADFUtils.swift; sourceTree = "<group>"; };
 		TASK128 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
+		TEST101 /* MarkdownToADFTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownToADFTests.swift; sourceTree = "<group>"; };
+		TEST000 /* TasksTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TasksTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		TASK200 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		TEST200 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -83,8 +93,17 @@
 			isa = PBXGroup;
 			children = (
 				TASK301 /* Tasks */,
+				TEST300 /* TasksTests */,
 				TASK302 /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		TEST300 /* TasksTests */ = {
+			isa = PBXGroup;
+			children = (
+				TEST101 /* MarkdownToADFTests.swift */,
+			);
+			path = TasksTests;
 			sourceTree = "<group>";
 		};
 		TASK301 /* Tasks */ = {
@@ -107,6 +126,7 @@
 			isa = PBXGroup;
 			children = (
 				TASK000 /* Tasks.app */,
+				TEST000 /* TasksTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -206,7 +226,43 @@
 			productReference = TASK000 /* Tasks.app */;
 			productType = "com.apple.product-type.application";
 		};
+		TEST400 /* TasksTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = TEST500 /* Build configuration list for PBXNativeTarget "TasksTests" */;
+			buildPhases = (
+				TEST401 /* Sources */,
+				TEST200 /* Frameworks */,
+				TEST402 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				TEST003 /* PBXTargetDependency */,
+			);
+			name = TasksTests;
+			productName = TasksTests;
+			productReference = TEST000 /* TasksTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		TEST004 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = TASK600 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = TASK400;
+			remoteInfo = Tasks;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		TEST003 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = TASK400 /* Tasks */;
+			targetProxy = TEST004 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		TASK600 /* Project object */ = {
@@ -228,6 +284,7 @@
 			projectRoot = "";
 			targets = (
 				TASK400 /* Tasks */,
+				TEST400 /* TasksTests */,
 			);
 		};
 /* End PBXProject section */
@@ -239,6 +296,13 @@
 			files = (
 				TASK002 /* Assets.xcassets in Resources */,
 				TASK003 /* Preview Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		TEST402 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -274,6 +338,14 @@
 				TASK025 /* AppLog.swift in Sources */,
 				TASK027 /* ADFUtils.swift in Sources */,
 				TASK028 /* Color+Hex.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		TEST401 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				TEST001 /* MarkdownToADFTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -319,6 +391,7 @@
 		TASK702 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ENABLE_TESTABILITY = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Tasks/Tasks.entitlements;
@@ -370,6 +443,58 @@
 			};
 			name = Release;
 		};
+		TEST700 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3GGB9J5232;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = TasksTests;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tasks.app.TasksTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tasks.app/Contents/MacOS/Tasks";
+			};
+			name = Debug;
+		};
+		TEST701 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3GGB9J5232;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = TasksTests;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tasks.app.TasksTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tasks.app/Contents/MacOS/Tasks";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -387,6 +512,15 @@
 			buildConfigurations = (
 				TASK700 /* Debug */,
 				TASK701 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		TEST500 /* Build configuration list for PBXNativeTarget "TasksTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				TEST700 /* Debug */,
+				TEST701 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

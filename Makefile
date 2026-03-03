@@ -1,4 +1,4 @@
-.PHONY: build build-release dist release run run-attached clean
+.PHONY: build build-release dist release run run-attached test clean
 
 build:
 	xcodebuild -scheme Tasks -configuration Debug build
@@ -35,6 +35,10 @@ run-attached: build
 		echo "✓ Ejecutando Tasks (Ctrl+C para salir, logs visibles)"; \
 		exec "$$APP/Contents/MacOS/Tasks"; \
 	else echo "✗ No se encontró Tasks.app"; exit 1; fi
+
+# Ejecuta los tests unitarios (TasksTests)
+test:
+	xcodebuild -scheme Tasks -destination 'platform=macOS' test
 
 clean:
 	xcodebuild -scheme Tasks clean

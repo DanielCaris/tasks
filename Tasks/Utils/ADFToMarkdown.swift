@@ -117,6 +117,26 @@ enum ADFToMarkdown {
 
         func wrap(_ s: String, marks: [[String: Any]]) -> String {
             var result = s
+            let types = Set(marks.compactMap { $0["type"] as? String })
+            // strong + em combinados → ***text***
+            if types.contains("strong"), types.contains("em") {
+                result = "***\(result)***"
+                for mark in marks.reversed() {
+                    guard let mt = mark["type"] as? String else { continue }
+                    let mattrs = mark["attrs"] as? [String: Any] ?? [:]
+                    if mt == "strong" || mt == "em" { continue }
+                    switch mt {
+                    case "underline": break
+                    case "strike": result = "~~\(result)~~"
+                    case "code": result = "`\(result)`"
+                    case "link":
+                        let href = mattrs["href"] as? String ?? ""
+                        result = "[\(result)](\(href))"
+                    default: break
+                    }
+                }
+                return result
+            }
             for mark in marks.reversed() {
                 guard let mt = mark["type"] as? String else { continue }
                 let mattrs = mark["attrs"] as? [String: Any] ?? [:]
