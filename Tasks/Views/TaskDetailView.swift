@@ -61,15 +61,17 @@ struct TaskDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                headerSection()
+        GeometryReader { geo in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 24) {
+                    headerSection(availableHeight: geo.size.height)
 
-                if task.providerId == JiraProvider.providerId {
-                    subtasksSection()
+                    if task.providerId == JiraProvider.providerId {
+                        subtasksSection()
+                    }
                 }
+                .padding(24)
             }
-            .padding(24)
         }
         .onChange(of: task.urgency) { _, newValue in
             if let v = newValue { urgency = v }
@@ -161,7 +163,7 @@ struct TaskDetailView: View {
         }
     }
 
-    private func headerSection() -> some View {
+    private func headerSection(availableHeight: CGFloat = 600) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 breadcrumbView
@@ -337,7 +339,7 @@ struct TaskDetailView: View {
                         TextEditor(text: $editableDescription)
                             .font(.body)
                             .fontDesign(.monospaced)
-                            .frame(minHeight: 120, alignment: .topLeading)
+                            .frame(minHeight: max(120, availableHeight * 0.5), alignment: .topLeading)
                             .scrollContentBackground(.hidden)
                             .padding(8)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -374,13 +376,13 @@ struct TaskDetailView: View {
                             jiraToken: KeychainHelper.load(key: "jira_api_token"),
                             colorScheme: colorScheme
                         )
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, minHeight: availableHeight * 0.5, alignment: .topLeading)
                         .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
                     } else {
                         Text(task.descriptionText ?? "Sin descripción")
                             .font(.body)
                             .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                            .frame(maxWidth: .infinity, minHeight: availableHeight * 0.5, alignment: .topLeading)
                             .padding(8)
                             .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
 
