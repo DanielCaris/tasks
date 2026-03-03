@@ -479,7 +479,7 @@ struct TaskDetailView: View {
             let subsRaw = taskStore.subtasks(for: task)
             let subsFiltered = subsRaw.filter { !taskStore.excludedSubtaskStatuses.contains($0.status) }
             let subs = sortedSubtasks(subsFiltered)
-            HStack {
+            HStack(alignment: .center, spacing: 8) {
                 Text("Subtareas")
                     .font(.headline)
                 if isLoadingSubtasks {
@@ -506,55 +506,7 @@ struct TaskDetailView: View {
                             .font(.subheadline)
                     }
                     .menuStyle(.borderlessButton)
-                }
-                if task.parentExternalId == nil {
-                    Button {
-                        newSubtaskTitle = ""
-                        newSubtaskDescription = ""
-                        showingAddSubtask = true
-                    } label: {
-                        Label("Agregar subtarea", systemImage: "plus.circle.fill")
-                            .font(.subheadline)
-                    }
-                    .buttonStyle(.borderless)
-                }
-            }
-            if !taskStore.excludedSubtaskStatuses.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Ocultar status:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    FlowLayout(spacing: 6) {
-                        ForEach(Array(taskStore.excludedSubtaskStatuses).sorted(), id: \.self) { status in
-                            StatusPill(label: status) {
-                                var next = taskStore.excludedSubtaskStatuses
-                                next.remove(status)
-                                taskStore.setSubtaskStatusExclusions(next)
-                            }
-                        }
-                    }
-                    HStack(spacing: 8) {
-                        Menu {
-                            ForEach(availableSubtaskStatusesToExclude, id: \.self) { status in
-                                Button(status) {
-                                    var next = taskStore.excludedSubtaskStatuses
-                                    next.insert(status)
-                                    taskStore.setSubtaskStatusExclusions(next)
-                                }
-                            }
-                            if availableSubtaskStatusesToExclude.isEmpty && !taskStore.knownStatuses.isEmpty {
-                                Text("Todos agregados")
-                                    .disabled(true)
-                            }
-                        } label: {
-                            Label("Agregar status a ocultar", systemImage: "plus.circle")
-                                .font(.caption)
-                        }
-                        .disabled(availableSubtaskStatusesToExclude.isEmpty && !taskStore.knownStatuses.isEmpty)
-                    }
-                }
-            } else {
-                HStack(spacing: 8) {
+
                     Menu {
                         ForEach(availableSubtaskStatusesToExclude, id: \.self) { status in
                             Button(status) {
@@ -568,10 +520,32 @@ struct TaskDetailView: View {
                                 .disabled(true)
                         }
                     } label: {
-                        Label("Ocultar status (ej: Done)", systemImage: "line.3.horizontal.decrease.circle")
-                            .font(.caption)
+                        Label("Excluir", systemImage: "line.3.horizontal.decrease.circle")
+                            .font(.subheadline)
                     }
+                    .menuStyle(.borderlessButton)
                     .disabled(availableSubtaskStatusesToExclude.isEmpty && !taskStore.knownStatuses.isEmpty)
+
+                    FlowLayout(spacing: 6) {
+                        ForEach(Array(taskStore.excludedSubtaskStatuses).sorted(), id: \.self) { status in
+                            StatusPill(label: status) {
+                                var next = taskStore.excludedSubtaskStatuses
+                                next.remove(status)
+                                taskStore.setSubtaskStatusExclusions(next)
+                            }
+                        }
+                    }
+                }
+                if task.parentExternalId == nil {
+                    Button {
+                        newSubtaskTitle = ""
+                        newSubtaskDescription = ""
+                        showingAddSubtask = true
+                    } label: {
+                        Label("Agregar subtarea", systemImage: "plus.circle.fill")
+                            .font(.subheadline)
+                    }
+                    .buttonStyle(.borderless)
                 }
             }
             if subs.isEmpty && !isLoadingSubtasks {
