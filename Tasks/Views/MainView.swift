@@ -21,39 +21,26 @@ struct MainView: View {
         return filtered.sorted { $0.priorityScore > $1.priorityScore }
     }
 
-    private var selectedTask: TaskItem? {
-        guard let id = selectedTaskId else { return nil }
-        return sidebarTasks.first { $0.taskId == id }
-            ?? taskStore.tasks.first { $0.taskId == id }
+    /// Lista plana: padres + subtareas asignadas a mí, ordenada por prioridad (una subtask puede estar arriba del padre).
+    private var flatSidebarTasks: [TaskItem] {
+        let parents = sidebarTasks
+        let subs = taskStore.allSubtasksAssignedToMe()
+        return (parents + subs).sorted { $0.priorityScore > $1.priorityScore }
     }
 
-    /// Parent activo: el seleccionado si es padre, o el padre de la subtask seleccionada.
-    private var activeParentForSubtasks: TaskItem? {
-        guard let task = selectedTask else { return nil }
-        if task.parentExternalId == nil { return task }
-        return sidebarTasks.first { $0.externalId == task.parentExternalId }
+    private var selectedTask: TaskItem? {
+        guard let id = selectedTaskId else { return nil }
+        return flatSidebarTasks.first { $0.taskId == id }
+            ?? taskStore.tasks.first { $0.taskId == id }
     }
 
     var body: some View {
         NavigationSplitView {
             List(selection: $selectedTaskId) {
                 Section("Tareas") {
-                    ForEach(sidebarTasks, id: \.taskId) { parent in
-                        TaskRowView(task: parent, taskStore: taskStore)
-                            .tag(parent.taskId)
-
-                        // Mostrar solo subtareas asignadas a mí cuando el parent está activo.
-                        if activeParentForSubtasks?.taskId == parent.taskId {
-                            ForEach(taskStore.subtasksAssignedToMe(for: parent), id: \.taskId) { sub in
-                                HStack(spacing: 6) {
-                                    Image(systemName: "arrow.turn.down.right")
-                                        .font(.caption2)
-                                        .foregroundStyle(.tertiary)
-                                    TaskRowView(task: sub, taskStore: taskStore)
-                                }
-                                .tag(sub.taskId)
-                            }
-                        }
+                    ForEach(flatSidebarTasks, id: \.taskId) { task in
+                        TaskRowView(task: task, taskStore: taskStore)
+                            .tag(task.taskId)
                     }
                 }
             }
