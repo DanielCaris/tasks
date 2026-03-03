@@ -3,13 +3,18 @@ import SwiftData
 
 /// Criterios de ordenación para subtareas.
 enum SubtaskSortOrder: String, CaseIterable {
-    case externalIdAsc = "Por ID (A→Z)"
-    case externalIdDesc = "Por ID (Z→A)"
-    case titleAsc = "Por título (A→Z)"
-    case titleDesc = "Por título (Z→A)"
-    case statusAsc = "Por estado (A→Z)"
-    case statusDesc = "Por estado (Z→A)"
-    case statusCustom = "Por orden de estado"
+    case statusCustom = "Orden por estado"
+    case externalIdAsc = "ID ascendente"
+    case externalIdDesc = "ID descendente"
+    case titleAsc = "Título A–Z"
+    case titleDesc = "Título Z–A"
+    case statusAsc = "Estado A–Z"
+    case statusDesc = "Estado Z–A"
+
+    /// Orden para mostrar en el menú (statusCustom primero).
+    static var menuOrder: [SubtaskSortOrder] {
+        [.statusCustom, .externalIdAsc, .externalIdDesc, .titleAsc, .titleDesc, .statusAsc, .statusDesc]
+    }
 }
 
 struct TaskDetailView: View {
@@ -22,7 +27,7 @@ struct TaskDetailView: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    @State private var subtaskSortOrder: SubtaskSortOrder = .externalIdAsc
+    @State private var subtaskSortOrder: SubtaskSortOrder = .statusCustom
     @State private var urgency: Int
     @State private var impact: Int
     @State private var effort: Int
@@ -489,7 +494,7 @@ struct TaskDetailView: View {
                 Spacer()
                 if !subsRaw.isEmpty {
                     Menu {
-                        ForEach(SubtaskSortOrder.allCases, id: \.self) { order in
+                        ForEach(SubtaskSortOrder.menuOrder, id: \.self) { order in
                             Button {
                                 subtaskSortOrder = order
                             } label: {
@@ -502,8 +507,16 @@ struct TaskDetailView: View {
                             }
                         }
                     } label: {
-                        Label("Ordenar", systemImage: "arrow.up.arrow.down.circle")
-                            .font(.subheadline)
+                        HStack(spacing: 4) {
+                            Label("Ordenar", systemImage: "arrow.up.arrow.down.circle")
+                                .font(.subheadline)
+                            Text("·")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Text(subtaskSortOrder.rawValue)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .menuStyle(.borderlessButton)
 
