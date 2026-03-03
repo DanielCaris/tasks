@@ -40,6 +40,7 @@ struct SettingsView: View {
     @State private var newStatusInput = ""
     @State private var selectedTab = 0
     @State private var statusOrdersByProject: [String: [String]] = [:]
+    @State private var statusColors: [String: String] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -84,6 +85,7 @@ struct SettingsView: View {
             testMessage = nil
             testSuccess = nil
             loadAllStatusOrders()
+            statusColors = KeychainHelper.loadStatusColors()
         }
         .onChange(of: jql) { _, _ in applyChanges() }
         .onChange(of: jiraURL) { _, _ in applyChanges() }
@@ -176,6 +178,39 @@ struct SettingsView: View {
     private var ordenPorEstadoTab: some View {
         Form {
             Section {
+                if statusesForColors.isEmpty {
+                    Text("Sincroniza tareas desde Jira para ver los estados aquí.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(statusesForColors, id: \.self) { status in
+                        HStack {
+                            Circle()
+                                .fill(Color(hex: statusColors[status] ?? "808080"))
+                                .frame(width: 10, height: 10)
+                            Text(status)
+                                .font(.subheadline)
+                            Spacer()
+                            ColorPicker("", selection: Binding(
+                                get: { Color(hex: statusColors[status] ?? "808080") },
+                                set: { newColor in
+                                    statusColors[status] = newColor.hexString
+                                    KeychainHelper.saveStatusColors(statusColors)
+                                    taskStore.reloadStatusColors()
+                                }
+                            ))
+                            .labelsHidden()
+                        }
+                    }
+                }
+            } header: {
+                Text("Colores por estado")
+            } footer: {
+                Text("El círculo junto al estado de cada tarea usará el color configurado.")
+                    .font(.caption)
+            }
+
+            Section {
                 Text("Orden de estados para subtareas (primero = más arriba). Cada proyecto tiene su propia configuración.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -201,7 +236,10 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .onAppear { loadAllStatusOrders() }
+        .onAppear {
+            loadAllStatusOrders()
+            statusColors = KeychainHelper.loadStatusColors()
+        }
     }
 
     private func projectStatusOrderSection(projectKey: String) -> some View {
@@ -310,6 +348,10 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var statusesForColors: [String] {
+        Set(taskStore.knownStatuses).union(statusColors.keys).sorted()
     }
 
     private var availableStatusesToAdd: [String] {

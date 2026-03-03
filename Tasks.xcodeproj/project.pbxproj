@@ -33,6 +33,7 @@
 		TASK024 /* HTMLToMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK125 /* HTMLToMarkdown.swift */; };
 		TASK025 /* AppLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK126 /* AppLog.swift */; };
 		TASK027 /* ADFUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK127 /* ADFUtils.swift */; };
+		TASK028 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK128 /* Color+Hex.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -64,6 +65,7 @@
 		TASK125 /* HTMLToMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTMLToMarkdown.swift; sourceTree = "<group>"; };
 		TASK126 /* AppLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLog.swift; sourceTree = "<group>"; };
 		TASK127 /* ADFUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ADFUtils.swift; sourceTree = "<group>"; };
+		TASK128 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -173,6 +175,7 @@
 		TASK309 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				TASK128 /* Color+Hex.swift */,
 				TASK126 /* AppLog.swift */,
 				TASK119 /* ADFToHTML.swift */,
 				TASK127 /* ADFUtils.swift */,
@@ -270,6 +273,7 @@
 				TASK024 /* HTMLToMarkdown.swift in Sources */,
 				TASK025 /* AppLog.swift in Sources */,
 				TASK027 /* ADFUtils.swift in Sources */,
+				TASK028 /* Color+Hex.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -48,6 +48,7 @@ struct TaskDetailView: View {
     @State private var isAssigningToMe = false
     @State private var optimisticDescriptionADF: String? = nil
     @State private var debouncedSaveTask: Task<Void, Never>? = nil
+    @State private var isHoveringDescription = false
     @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
@@ -231,9 +232,14 @@ struct TaskDetailView: View {
 
             HStack(spacing: 8) {
                 if availableTransitions.isEmpty && !isLoadingTransitions {
-                    Label(task.status, systemImage: "circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: "circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(taskStore.statusColor(for: task.status))
+                        Text(task.status)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 } else if isLoadingTransitions {
                     ProgressView()
                         .controlSize(.small)
@@ -258,6 +264,7 @@ struct TaskDetailView: View {
                             } else {
                                 Image(systemName: "circle.fill")
                                     .font(.caption2)
+                                    .foregroundStyle(taskStore.statusColor(for: task.status))
                             }
                             Text(task.status)
                                 .font(.caption)
@@ -335,115 +342,118 @@ struct TaskDetailView: View {
     private func descriptionSection(availableHeight: CGFloat) -> some View {
         let descHeight = availableHeight * 0.5
         return VStack(alignment: .leading, spacing: 6) {
-            if !isEditingDescription, (task.descriptionHTML != nil || task.descriptionADFJSON != nil || (task.descriptionText ?? "").isEmpty == false) {
-                HStack {
-                    Spacer()
-                    Button {
-                        editableDescription = Self.initialDescriptionMarkdown(for: task)
-                        isEditingDescription = true
-                    } label: {
-                        Label("Editar", systemImage: "pencil")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.link)
-                }
-            }
-
             Group {
                 if isEditingDescription {
                     descriptionEditContent(height: descHeight)
                 } else if let html = Self.descriptionHTMLForDisplay(task: task, interactiveCheckboxes: task.descriptionADFJSON != nil, adfOverride: optimisticDescriptionADF), !html.isEmpty {
-                    RichHTMLView(
-                        html: html,
-                        baseURL: KeychainHelper.load(key: "jira_url") ?? "",
-                        jiraEmail: KeychainHelper.load(key: "jira_email"),
-                        jiraToken: KeychainHelper.load(key: "jira_api_token"),
-                        colorScheme: colorScheme,
-                        onCheckboxToggle: task.descriptionADFJSON != nil ? { index, _ in
-                            handleCheckboxToggleOptimistic(index: index)
-                        } : nil,
-                        onDoubleClick: {
-                            editableDescription = Self.initialDescriptionMarkdown(for: task)
-                            isEditingDescription = true
-                        }
-                    )
-                    .frame(maxWidth: .infinity, minHeight: descHeight, maxHeight: descHeight, alignment: .topLeading)
-                    .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
+                    descriptionViewWithHover(height: descHeight) {
+                        RichHTMLView(
+                            html: html,
+                            baseURL: KeychainHelper.load(key: "jira_url") ?? "",
+                            jiraEmail: KeychainHelper.load(key: "jira_email"),
+                            jiraToken: KeychainHelper.load(key: "jira_api_token"),
+                            colorScheme: colorScheme,
+                            onCheckboxToggle: task.descriptionADFJSON != nil ? { index, _ in
+                                handleCheckboxToggleOptimistic(index: index)
+                            } : nil,
+                            onDoubleClick: {
+                                editableDescription = Self.initialDescriptionMarkdown(for: task)
+                                isEditingDescription = true
+                            }
+                        )
+                        .frame(maxWidth: .infinity, minHeight: descHeight, maxHeight: descHeight, alignment: .topLeading)
+                    }
                 } else {
-                    descriptionReadContent(height: descHeight)
+                    descriptionViewWithHover(height: descHeight) {
+                        descriptionReadContent(height: descHeight, includeBackground: false)
+                    }
                 }
             }
             .frame(minHeight: descHeight)
+
+            if isEditingDescription {
+                HStack(spacing: 8) {
+                    Button {
+                        saveToJira()
+                    } label: {
+                        Label {
+                            Text("Guardar en Jira")
+                        } icon: {
+                            if isSavingToJira {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.up.circle.fill")
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isSavingToJira || !hasEdits)
+
+                    Button("Cancelar") {
+                        isEditingDescription = false
+                        editableDescription = Self.initialDescriptionMarkdown(for: task)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .frame(height: 28)
+            }
         }
         .padding(.top, 16)
     }
 
     @ViewBuilder
+    private func descriptionViewWithHover<Content: View>(height: CGFloat, @ViewBuilder content: () -> Content) -> some View {
+        let bgColor: some ShapeStyle = colorScheme == .dark
+            ? AnyShapeStyle(.regularMaterial.opacity(isHoveringDescription ? 0.65 : 0.5))
+            : AnyShapeStyle(isHoveringDescription ? Color.gray.opacity(0.12) : Color.clear)
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(bgColor)
+            content()
+        }
+        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
+        .contentShape(Rectangle())
+        .onHover { isHoveringDescription = $0 }
+        .onTapGesture(count: 2) {
+            editableDescription = Self.initialDescriptionMarkdown(for: task)
+            isEditingDescription = true
+        }
+    }
+
+    @ViewBuilder
     private func descriptionEditContent(height: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Puedes usar Markdown: **negrita**, *cursiva*, [enlaces](url), listas, etc.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 4)
             TextEditor(text: $editableDescription)
                 .font(.body)
                 .fontDesign(.monospaced)
-                .frame(minHeight: max(120, height - 76), alignment: .topLeading)
+                .frame(minHeight: max(120, height - 20), alignment: .topLeading)
                 .scrollContentBackground(.hidden)
                 .padding(8)
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-
-            HStack(spacing: 8) {
-                Button {
-                    saveToJira()
-                } label: {
-                    Label {
-                        Text("Guardar en Jira")
-                    } icon: {
-                        if isSavingToJira {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.up.circle.fill")
-                        }
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSavingToJira || !hasEdits)
-
-                Button("Cancelar") {
-                    isEditingDescription = false
-                    editableDescription = Self.initialDescriptionMarkdown(for: task)
-                }
-                .buttonStyle(.bordered)
-            }
         }
         .frame(height: height)
     }
 
     @ViewBuilder
-    private func descriptionReadContent(height: CGFloat) -> some View {
+    private func descriptionReadContent(height: CGFloat, includeBackground: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(task.descriptionText ?? "Sin descripción")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(8)
-                .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(includeBackground ? (colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear)) : AnyShapeStyle(Color.clear))
+                )
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) {
-                    editableDescription = Self.initialDescriptionMarkdown(for: task)
-                    isEditingDescription = true
+                    if includeBackground {
+                        editableDescription = Self.initialDescriptionMarkdown(for: task)
+                        isEditingDescription = true
+                    }
                 }
-
-            Button {
-                editableDescription = Self.initialDescriptionMarkdown(for: task)
-                isEditingDescription = true
-            } label: {
-                Label("Editar descripción", systemImage: "pencil")
-                    .font(.caption)
-            }
-            .buttonStyle(.link)
         }
         .frame(height: height)
     }
@@ -629,9 +639,14 @@ struct TaskDetailView: View {
                                     .font(.body)
                                     .lineLimit(1)
                                 Spacer()
-                                Text(sub.status)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 4) {
+                                    Image(systemName: "circle.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(taskStore.statusColor(for: sub.status))
+                                    Text(sub.status)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                                 if let url = sub.url {
                                     Link(destination: url) {
                                         Image(systemName: "arrow.up.right.square")

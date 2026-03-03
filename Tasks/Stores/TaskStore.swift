@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import SwiftUI
 
 @MainActor
 final class TaskStore: ObservableObject {
@@ -59,6 +60,19 @@ final class TaskStore: ObservableObject {
     func statusSortIndex(for status: String, projectKey: String) -> Int {
         let order = KeychainHelper.loadStatusOrder(projectKey: projectKey)
         return order.firstIndex(of: status) ?? Int.max
+    }
+
+    /// Versión de colores; al incrementarse, las vistas que usan statusColor se actualizan.
+    @Published private(set) var statusColorsVersion: Int = 0
+
+    /// Color configurado para un estado, o gris por defecto.
+    func statusColor(for status: String) -> Color {
+        let hex = KeychainHelper.loadStatusColors()[status] ?? "808080"
+        return Color(hex: hex)
+    }
+
+    func reloadStatusColors() {
+        statusColorsVersion += 1
     }
 
     var providerId: String? {

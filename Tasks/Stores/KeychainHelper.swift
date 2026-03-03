@@ -78,4 +78,15 @@ enum KeychainHelper {
     private static func loadAllStatusOrders() -> [String: [String]] {
         suite.dictionary(forKey: statusOrdersKey) as? [String: [String]] ?? [:]
     }
+
+    /// Colores por estado (clave: nombre del status, valor: hex RRGGBB).
+    private static let statusColorsKey = prefix + "status_colors"
+
+    static func saveStatusColors(_ colors: [String: String]) {
+        suite.set(colors, forKey: statusColorsKey)
+    }
+
+    static func loadStatusColors() -> [String: String] {
+        suite.dictionary(forKey: statusColorsKey) as? [String: String] ?? [:]
+    }
 }
