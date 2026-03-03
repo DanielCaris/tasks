@@ -432,7 +432,7 @@ struct TaskDetailView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(alignment: .leading, spacing: 6) {
+                List {
                     ForEach(subs) { sub in
                         HStack(spacing: 8) {
                             Text(sub.externalId)
@@ -456,8 +456,23 @@ struct TaskDetailView: View {
                         }
                         .padding(8)
                         .liquidGlassSubtaskCard()
+                        .listRowInsets(EdgeInsets(top: 3, leading: 0, bottom: 3, trailing: 0))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task {
+                                    await taskStore.deleteSubtask(sub)
+                                }
+                            } label: {
+                                Label("Eliminar", systemImage: "trash")
+                            }
+                        }
                     }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .frame(minHeight: CGFloat(max(subs.count, 1)) * 44)
             }
         }
         .task(id: task.taskId) {

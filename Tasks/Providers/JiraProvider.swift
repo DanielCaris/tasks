@@ -374,6 +374,29 @@ final class JiraProvider: IssueProviderProtocol {
         try await fetchIssueInternal(issueKey: externalId)
     }
 
+    func deleteIssue(externalId: String) async throws -> Bool {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(externalId)") else {
+            throw JiraError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+        return true
+    }
+
     private func fetchIssueInternal(issueKey: String) async throws -> IssueDTO {
         guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=summary,description,status,priority,assignee,created,updated,attachment") else {
             throw JiraError.invalidURL

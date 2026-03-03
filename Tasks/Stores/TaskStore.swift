@@ -321,4 +321,22 @@ final class TaskStore: ObservableObject {
     func subtasks(for task: TaskItem) -> [TaskItem] {
         tasks.filter { $0.parentExternalId == task.externalId }
     }
+
+    func deleteSubtask(_ subtask: TaskItem) async {
+        guard let provider else {
+            let msg = "No hay proveedor configurado. Configura Jira en Ajustes."
+            AppLog.error(msg, context: "deleteSubtask")
+            errorMessage = msg
+            return
+        }
+        do {
+            guard try await provider.deleteIssue(externalId: subtask.externalId) else { return }
+            modelContext.delete(subtask)
+            try? modelContext.save()
+            await loadTasks()
+        } catch {
+            AppLog.error(error.localizedDescription, context: "deleteSubtask(\(subtask.externalId))")
+            errorMessage = error.localizedDescription
+        }
+    }
 }

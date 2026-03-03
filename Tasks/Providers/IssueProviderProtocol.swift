@@ -25,6 +25,8 @@ protocol IssueProviderProtocol {
     func getTransitions(externalId: String) async throws -> [TransitionOption]
     /// Ejecuta una transición (cambio de status) en el proveedor remoto.
     func transitionIssue(externalId: String, transitionId: String) async throws
+    /// Elimina un issue en el proveedor remoto. Retorna true si se eliminó. nil/false si no soportado.
+    func deleteIssue(externalId: String) async throws -> Bool
 }
 
 extension IssueProviderProtocol {
@@ -55,5 +57,9 @@ extension IssueProviderProtocol {
 
     func transitionIssue(externalId: String, transitionId: String) async throws {
         // No-op por defecto
+    }
+
+    func deleteIssue(externalId: String) async throws -> Bool {
+        false
     }
 }
