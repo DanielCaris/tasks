@@ -136,22 +136,31 @@ struct TaskDetailView: View {
         }
     }
 
-    private func headerSection(availableHeight: CGFloat = 600) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+    private var breadcrumbView: some View {
+        HStack(spacing: 6) {
             if task.parentExternalId != nil, let onSelectParent, let parent = taskStore.tasks.first(where: { $0.externalId == task.parentExternalId }) {
                 Button {
                     onSelectParent(parent)
                 } label: {
-                    Label("Volver a \(parent.externalId)", systemImage: "chevron.left")
-                        .font(.subheadline)
+                    Text(parent.externalId)
+                        .font(.headline)
+                        .foregroundStyle(Color.accentColor)
                 }
-                .buttonStyle(.borderless)
-                .padding(.bottom, 4)
-            }
-            HStack(spacing: 8) {
-                Text(task.externalId)
+                .buttonStyle(.plain)
+                Text("›")
                     .font(.headline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.tertiary)
+            }
+            Text(task.externalId)
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func headerSection(availableHeight: CGFloat = 600) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                breadcrumbView
                 if let url = task.url {
                     Link(destination: url) {
                         Label("Abrir en Jira", systemImage: "arrow.up.right.square")
@@ -547,6 +556,8 @@ struct TaskDetailView: View {
                                     .font(.caption2)
                                     .foregroundStyle(.tertiary)
                             }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .padding(8)
