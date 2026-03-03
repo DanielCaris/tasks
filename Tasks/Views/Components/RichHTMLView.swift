@@ -9,6 +9,8 @@ struct RichHTMLView: NSViewRepresentable {
     let jiraEmail: String?
     let jiraToken: String?
     var colorScheme: ColorScheme = .light
+    /// Hex del color de texto (ej: "1d1d1f"). Si se pasa, se usa en vez de NSColor.labelColor para coincidir con SwiftUI.
+    var labelColorHex: String? = nil
     var onCheckboxToggle: ((Int, Bool) -> Void)? = nil
     var onDoubleClick: (() -> Void)? = nil
 
@@ -30,13 +32,23 @@ struct RichHTMLView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         let isDark = colorScheme == .dark || NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-        context.coordinator.isDark = isDark
-        context.coordinator.onCheckboxToggle = onCheckboxToggle
-        context.coordinator.onDoubleClick = onDoubleClick
         webView.appearance = isDark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
 
-        let textColor = isDark ? "#ffffff" : "#1d1d1f"
+        let textColor: String
+        if let hex = labelColorHex, !hex.isEmpty {
+            textColor = hex.hasPrefix("#") ? hex : "#\(hex)"
+        } else {
+            let labelColor = NSColor.labelColor.usingColorSpace(.sRGB) ?? NSColor.labelColor
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+            labelColor.getRed(&r, green: &g, blue: &b, alpha: &a)
+            textColor = String(format: "#%02x%02x%02x", Int(r * 255), Int(g * 255), Int(b * 255))
+        }
         let linkColor = "#64d2ff"
+
+        context.coordinator.isDark = isDark
+        context.coordinator.textColorHex = textColor
+        context.coordinator.onCheckboxToggle = onCheckboxToggle
+        context.coordinator.onDoubleClick = onDoubleClick
 
         let fullHTML = """
         <!DOCTYPE html>
@@ -62,6 +74,7 @@ struct RichHTMLView: NSViewRepresentable {
 
     class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var isDark = false
+        var textColorHex = "#1d1d1f"
         var onCheckboxToggle: ((Int, Bool) -> Void)?
         var onDoubleClick: (() -> Void)?
 
@@ -97,7 +110,7 @@ struct RichHTMLView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            let color = isDark ? "#ffffff" : "#1d1d1f"
+            let color = textColorHex
             let script = """
             (function(){
                 if(!document.body)return;

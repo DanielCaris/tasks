@@ -240,6 +240,7 @@ struct TaskDetailView: View {
                     Text(editableTitle)
                         .font(.title2)
                         .fontWeight(.medium)
+                        .foregroundStyle(Color(hex: Color.primary.hexString))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                         .onTapGesture(count: 1) {
@@ -378,6 +379,7 @@ struct TaskDetailView: View {
                             jiraEmail: KeychainHelper.load(key: "jira_email"),
                             jiraToken: KeychainHelper.load(key: "jira_api_token"),
                             colorScheme: colorScheme,
+                            labelColorHex: Color.primary.hexString,
                             onCheckboxToggle: task.descriptionADFJSON != nil ? { index, _ in
                                 handleCheckboxToggleOptimistic(index: index)
                             } : nil,
@@ -493,7 +495,7 @@ struct TaskDetailView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(task.descriptionText ?? "Sin descripción")
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(8)
                 .background(

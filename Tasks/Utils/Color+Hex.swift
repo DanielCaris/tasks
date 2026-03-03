@@ -45,3 +45,15 @@ extension Color {
         #endif
     }
 }
+
+#if os(macOS)
+extension NSColor {
+    /// Devuelve la representación hexadecimal del color (ej: "1d1d1f").
+    var hexString: String {
+        let sRGB = usingColorSpace(.sRGB) ?? self
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        sRGB.getRed(&r, green: &g, blue: &b, alpha: &a)
+        return String(format: "%02x%02x%02x", Int(r * 255), Int(g * 255), Int(b * 255))
+    }
+}
+#endif

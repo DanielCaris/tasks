@@ -52,7 +52,7 @@ enum ADFToHTML {
             let level = attrs["level"] as? Int ?? 1
             let tag = "h\(min(max(level, 1), 6))"
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
-            return "<\(tag) style='margin: 0.5em 0 0.2em; font-size: \(headingSize(level))em;'>\(inner)</\(tag)>"
+            return "<\(tag) style='margin: 0.5em 0 0.2em; font-size: \(headingSize(level))em; font-weight: 500;'>\(inner)</\(tag)>"
 
         case "taskList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
@@ -138,7 +138,7 @@ enum ADFToHTML {
         case "expand":
             let title = attrs["title"] as? String ?? ""
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<details style='margin: 0.25em 0;'><summary style='cursor: pointer; font-weight: 600;'>\(escape(title.isEmpty ? "▼" : title))</summary><div style='margin-top: 0.25em;'>\(inner)</div></details>"
+            return "<details style='margin: 0.25em 0;'><summary style='cursor: pointer; font-weight: 500;'>\(escape(title.isEmpty ? "▼" : title))</summary><div style='margin-top: 0.25em;'>\(inner)</div></details>"
 
         default:
             return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined().isEmpty ? nil : content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
