@@ -46,6 +46,7 @@ struct TaskDetailView: View {
     @State private var newSubtaskDescription = ""
     @State private var isCreatingSubtask = false
     @State private var isAssigningToMe = false
+    @State private var optimisticDescriptionADF: String? = nil
     @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
@@ -322,6 +323,7 @@ struct TaskDetailView: View {
             if !isEditingDescription { editableDescription = Self.initialDescriptionMarkdown(for: task) }
         }
         .onChange(of: task.descriptionADFJSON) { _, _ in
+            optimisticDescriptionADF = nil
             if !isEditingDescription { editableDescription = Self.initialDescriptionMarkdown(for: task) }
         }
         .onChange(of: task.descriptionMarkdown) { _, _ in
@@ -332,12 +334,9 @@ struct TaskDetailView: View {
     private func descriptionSection(availableHeight: CGFloat) -> some View {
         let descHeight = availableHeight * 0.5
         return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text("Descripción")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundStyle(.secondary)
-                if !isEditingDescription, (task.descriptionHTML != nil || task.descriptionADFJSON != nil || (task.descriptionText ?? "").isEmpty == false) {
+            if !isEditingDescription, (task.descriptionHTML != nil || task.descriptionADFJSON != nil || (task.descriptionText ?? "").isEmpty == false) {
+                HStack {
+                    Spacer()
                     Button {
                         editableDescription = Self.initialDescriptionMarkdown(for: task)
                         isEditingDescription = true
@@ -347,19 +346,25 @@ struct TaskDetailView: View {
                     }
                     .buttonStyle(.link)
                 }
-                Spacer()
             }
 
             Group {
                 if isEditingDescription {
                     descriptionEditContent(height: descHeight)
-                } else if let html = Self.descriptionHTMLForDisplay(task: task), !html.isEmpty {
+                } else if let html = Self.descriptionHTMLForDisplay(task: task, interactiveCheckboxes: task.descriptionADFJSON != nil, adfOverride: optimisticDescriptionADF), !html.isEmpty {
                     RichHTMLView(
                         html: html,
                         baseURL: KeychainHelper.load(key: "jira_url") ?? "",
                         jiraEmail: KeychainHelper.load(key: "jira_email"),
                         jiraToken: KeychainHelper.load(key: "jira_api_token"),
-                        colorScheme: colorScheme
+                        colorScheme: colorScheme,
+                        onCheckboxToggle: task.descriptionADFJSON != nil ? { index, _ in
+                            handleCheckboxToggleOptimistic(index: index)
+                        } : nil,
+                        onDoubleClick: {
+                            editableDescription = Self.initialDescriptionMarkdown(for: task)
+                            isEditingDescription = true
+                        }
                     )
                     .frame(maxWidth: .infinity, minHeight: descHeight, maxHeight: descHeight, alignment: .topLeading)
                     .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
@@ -424,6 +429,11 @@ struct TaskDetailView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(8)
                 .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    editableDescription = Self.initialDescriptionMarkdown(for: task)
+                    isEditingDescription = true
+                }
 
             Button {
                 editableDescription = Self.initialDescriptionMarkdown(for: task)
@@ -693,6 +703,22 @@ struct TaskDetailView: View {
         taskStore.updatePriority(task: task, urgency: urgency, impact: impact, effort: effort)
     }
 
+    private func handleCheckboxToggleOptimistic(index: Int) {
+        let jsonSource = optimisticDescriptionADF ?? task.descriptionADFJSON
+        guard let json = jsonSource,
+              let data = json.data(using: .utf8),
+              let adf = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let modifiedADF = ADFUtils.toggleTaskItem(at: index, in: adf),
+              let jsonData = try? JSONSerialization.data(withJSONObject: modifiedADF),
+              let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
+        optimisticDescriptionADF = jsonStr
+        let markdown = ADFToMarkdown.convert(adf: modifiedADF)
+        Task {
+            await taskStore.updateTaskInProvider(task: task, title: nil, description: markdown)
+            await MainActor.run { optimisticDescriptionADF = nil }
+        }
+    }
+
     private static func initialDescriptionMarkdown(for task: TaskItem) -> String {
         if let md = task.descriptionMarkdown, !md.isEmpty {
             return md
@@ -709,7 +735,16 @@ struct TaskDetailView: View {
     }
 
     /// HTML para mostrar la descripción renderizada (Markdown/ADF → HTML).
-    private static func descriptionHTMLForDisplay(task: TaskItem) -> String? {
+    /// interactiveCheckboxes: si true, los checkboxes de taskList son clickeables.
+    /// adfOverride: si se proporciona, se usa en lugar de task.descriptionADFJSON (para UI optimista).
+    private static func descriptionHTMLForDisplay(task: TaskItem, interactiveCheckboxes: Bool = false, adfOverride: String? = nil) -> String? {
+        let jsonSource = adfOverride ?? task.descriptionADFJSON
+        if interactiveCheckboxes, let json = jsonSource,
+           let data = json.data(using: .utf8),
+           let adf = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            let baseURL = KeychainHelper.load(key: "jira_url") ?? ""
+            return ADFToHTML.convert(adf: adf, baseURL: baseURL, interactiveCheckboxes: true)
+        }
         if let html = task.descriptionHTML, !html.isEmpty {
             return html
         }
@@ -717,12 +752,12 @@ struct TaskDetailView: View {
            let data = json.data(using: .utf8),
            let adf = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             let baseURL = KeychainHelper.load(key: "jira_url") ?? ""
-            return ADFToHTML.convert(adf: adf, baseURL: baseURL)
+            return ADFToHTML.convert(adf: adf, baseURL: baseURL, interactiveCheckboxes: interactiveCheckboxes)
         }
         if let text = task.descriptionText, !text.isEmpty {
             let adf = MarkdownToADF.convert(text)
             let baseURL = KeychainHelper.load(key: "jira_url") ?? ""
-            return ADFToHTML.convert(adf: adf, baseURL: baseURL)
+            return ADFToHTML.convert(adf: adf, baseURL: baseURL, interactiveCheckboxes: interactiveCheckboxes)
         }
         return nil
     }

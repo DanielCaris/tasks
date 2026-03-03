@@ -18,12 +18,14 @@ enum ADFToHTML {
     /// Convierte un documento ADF (dict) a HTML. baseURL para media. attachmentMap: filename -> attachmentId (para imágenes).
     /// imageAttachmentIdsInOrder: IDs de attachments de imagen en orden; cuando media.alt está vacío, se usa el siguiente de la lista.
     /// mediaIdToSignedURL: UUID (media.id) -> URL firmada del CDN; permite cargar imágenes sin auth.
-    static func convert(adf: [String: Any], baseURL: String, attachmentMap: [String: String] = [:], imageAttachmentIdsInOrder: [String] = [], mediaIdToSignedURL: [String: String] = [:]) -> String {
+    /// interactiveCheckboxes: si true, los checkboxes de taskList son clickeables y llevan data-task-index para mensajes JS.
+    static func convert(adf: [String: Any], baseURL: String, attachmentMap: [String: String] = [:], imageAttachmentIdsInOrder: [String] = [], mediaIdToSignedURL: [String: String] = [:], interactiveCheckboxes: Bool = false) -> String {
         guard let content = adf["content"] as? [[String: Any]], !content.isEmpty else {
             return ""
         }
         let fallback = imageAttachmentIdsInOrder.isEmpty ? nil : AttachmentFallback(ids: imageAttachmentIdsInOrder)
-        let html = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined(separator: "\n")
+        var taskIndex = 0
+        let html = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined(separator: "\n")
         return """
         <div class="adf-content" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; line-height: 1.5; color: var(--adf-text); margin: 0; padding: 0;">
         \(html)
@@ -31,7 +33,7 @@ enum ADFToHTML {
         """
     }
 
-    private static func nodeToHTML(_ node: [String: Any], baseURL: String, attachmentMap: [String: String] = [:], fallback: AttachmentFallback? = nil, mediaIdToSignedURL: [String: String] = [:]) -> String? {
+    private static func nodeToHTML(_ node: [String: Any], baseURL: String, attachmentMap: [String: String] = [:], fallback: AttachmentFallback? = nil, mediaIdToSignedURL: [String: String] = [:], interactiveCheckboxes: Bool = false, taskIndex: inout Int) -> String? {
         guard let type = node["type"] as? String else { return nil }
         let content = node["content"] as? [[String: Any]] ?? []
         let attrs = node["attrs"] as? [String: Any] ?? [:]
@@ -39,7 +41,7 @@ enum ADFToHTML {
 
         switch type {
         case "doc":
-            return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined(separator: "\n")
+            return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined(separator: "\n")
 
         case "paragraph":
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
@@ -52,20 +54,50 @@ enum ADFToHTML {
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
             return "<\(tag) style='margin: 0.5em 0 0.2em; font-size: \(headingSize(level))em;'>\(inner)</\(tag)>"
 
+        case "taskList":
+            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
+            return "<ul style='margin: 0.25em 0; padding-left: 1.5em; list-style: none;'>\(items)</ul>"
+
+        case "taskItem":
+            let state = (attrs["state"] as? String) ?? "TODO"
+            let checked = state == "DONE"
+            let idx = taskIndex
+            taskIndex += 1
+            let disabledAttr = interactiveCheckboxes ? "" : " disabled"
+            let dataAttr = interactiveCheckboxes ? " data-task-index=\"\(idx)\"" : ""
+            let checkbox = "<span style='display:inline-flex;align-items:center;min-height:1.5em;'>" +
+                "<input type='checkbox' class='adf-task-checkbox'\(dataAttr)\(disabledAttr) \(checked ? "checked" : "") style='margin:0 8px 0 0;cursor:pointer;'>" +
+                "</span>"
+            let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
+            return "<li style='margin: 0.2em 0; display: flex; align-items: flex-start;'>\(checkbox)<span style='flex: 1; line-height: 1.5;'>\(inner)</span></li>"
+
+        case "blockTaskItem":
+            let state = (attrs["state"] as? String) ?? "TODO"
+            let checked = state == "DONE"
+            let idx = taskIndex
+            taskIndex += 1
+            let disabledAttr = interactiveCheckboxes ? "" : " disabled"
+            let dataAttr = interactiveCheckboxes ? " data-task-index=\"\(idx)\"" : ""
+            let checkbox = "<span style='display:inline-flex;align-items:center;min-height:1.5em;'>" +
+                "<input type='checkbox' class='adf-task-checkbox'\(dataAttr)\(disabledAttr) \(checked ? "checked" : "") style='margin:0 8px 0 0;cursor:pointer;'>" +
+                "</span>"
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
+            return "<li style='margin: 0.2em 0; display: flex; align-items: flex-start;'>\(checkbox)<span style='flex: 1;'>\(inner)</span></li>"
+
         case "bulletList":
-            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<ul style='margin: 0.25em 0; padding-left: 1.5em;'>\(items)</ul>"
 
         case "orderedList":
-            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<ol style='margin: 0.25em 0; padding-left: 1.5em;'>\(items)</ol>"
 
         case "listItem":
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<li style='margin: 0.1em 0;'>\(inner)</li>"
 
         case "blockquote":
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<blockquote style='margin: 0.25em 0; padding-left: 1em; border-left: 4px solid var(--adf-border); color: var(--adf-secondary);'>\(inner)</blockquote>"
 
         case "codeBlock":
@@ -80,20 +112,20 @@ enum ADFToHTML {
         case "panel":
             let panelType = attrs["panelType"] as? String ?? "info"
             let bg = panelBackground(panelType)
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<div style='margin: 0.25em 0; padding: 12px; background: \(bg); border-radius: 6px;'>\(inner)</div>"
 
         case "table":
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<table style='border-collapse: collapse; width: 100%; margin: 0.25em 0;'><tbody>\(inner)</tbody></table>"
 
         case "tableRow":
-            let cells = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let cells = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<tr>\(cells)</tr>"
 
         case "tableHeader", "tableCell":
             let cellTag = type == "tableHeader" ? "th" : "td"
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<\(cellTag) style='border: 1px solid var(--adf-border); padding: 8px;'>\(inner)</\(cellTag)>"
 
         case "mediaSingle", "mediaGroup":
@@ -105,11 +137,11 @@ enum ADFToHTML {
 
         case "expand":
             let title = attrs["title"] as? String ?? ""
-            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
             return "<details style='margin: 0.25em 0;'><summary style='cursor: pointer; font-weight: 600;'>\(escape(title.isEmpty ? "▼" : title))</summary><div style='margin-top: 0.25em;'>\(inner)</div></details>"
 
         default:
-            return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined().isEmpty ? nil : content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL) }.joined()
+            return content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined().isEmpty ? nil : content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
         }
     }
 

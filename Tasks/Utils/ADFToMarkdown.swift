@@ -30,6 +30,9 @@ enum ADFToMarkdown {
             let inner = content.compactMap { inlineToMarkdown($0) }.joined()
             return "\(hashes) \(inner)"
 
+        case "taskList":
+            return content.compactMap { taskItemToMarkdown($0) }.joined(separator: "\n")
+
         case "bulletList":
             return content.compactMap { listItemToMarkdown($0, prefix: "-") }.joined(separator: "\n")
 
@@ -75,6 +78,25 @@ enum ADFToMarkdown {
         default:
             return content.compactMap { nodeToMarkdown($0) }.joined(separator: "\n\n")
         }
+    }
+
+    private static func taskItemToMarkdown(_ node: [String: Any]) -> String? {
+        let type = node["type"] as? String
+        guard type == "taskItem" || type == "blockTaskItem" else { return nil }
+        let attrs = node["attrs"] as? [String: Any] ?? [:]
+        let state = attrs["state"] as? String ?? "TODO"
+        let checked = state == "DONE"
+        let prefix = checked ? "- [x] " : "- [ ] "
+        let content = node["content"] as? [[String: Any]] ?? []
+        let inner: String
+        if type == "taskItem" {
+            inner = content.compactMap { inlineToMarkdown($0) }.joined()
+        } else {
+            inner = content.compactMap { nodeToMarkdown($0) }.joined(separator: "\n")
+        }
+        return inner.split(separator: "\n").enumerated().map { i, line in
+            i == 0 ? "\(prefix)\(line)" : "  \(line)"
+        }.joined(separator: "\n")
     }
 
     private static func listItemToMarkdown(_ node: [String: Any], prefix: String) -> String? {

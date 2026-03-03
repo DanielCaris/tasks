@@ -101,6 +101,32 @@ enum MarkdownToADF {
                 continue
             }
 
+            // Task list (checkboxes): - [ ] or - [x] or * [ ] or * [x]
+            if parseTaskItem(trimmed) != nil {
+                var items: [[String: Any]] = []
+                let bulletChar = String(trimmed.prefix(1))
+                while i < lines.count {
+                    let l = lines[i]
+                    let t = l.trimmingCharacters(in: .whitespaces)
+                    guard let (isChecked, text, _) = parseTaskItem(t), String(t.prefix(1)) == bulletChar else { break }
+                    let (inlineContent, _) = parseInline(text)
+                    let localId = UUID().uuidString
+                    items.append([
+                        "type": "blockTaskItem",
+                        "attrs": ["localId": localId, "state": isChecked ? "DONE" : "TODO"],
+                        "content": [["type": "paragraph", "content": inlineContent]]
+                    ])
+                    i += 1
+                }
+                let taskListId = UUID().uuidString
+                content.append([
+                    "type": "taskList",
+                    "attrs": ["localId": taskListId],
+                    "content": items
+                ])
+                continue
+            }
+
             // Bullet list: - item or * item
             if let bullet = parseBullet(trimmed) {
                 var items: [[String: Any]] = []
@@ -149,6 +175,7 @@ enum MarkdownToADF {
                 if isHorizontalRule(t) { break }
                 if t.hasPrefix(">") { break }
                 if t.hasPrefix("```") { break }
+                if parseTaskItem(t) != nil { break }
                 if parseBullet(t) != nil { break }
                 if parseOrderedListMarker(t) != nil { break }
                 if parseBlockImage(t) != nil { break }
@@ -193,6 +220,23 @@ enum MarkdownToADF {
         guard t.count >= 3 else { return false }
         let c = t.first!
         return (c == "-" || c == "*" || c == "_") && t.allSatisfy { $0 == c }
+    }
+
+    /// Parsea item de task list (checkbox): "- [ ] texto" o "- [x] texto". Retorna (checked, texto, longitud del prefijo) o nil.
+    private static func parseTaskItem(_ s: String) -> (Bool, String, Int)? {
+        let t = s.trimmingCharacters(in: .whitespaces)
+        let prefixes = ["- ", "* ", "+ "]
+        for p in prefixes {
+            guard t.hasPrefix(p) else { continue }
+            let rest = String(t.dropFirst(p.count))
+            if rest.hasPrefix("[ ] ") {
+                return (false, String(rest.dropFirst(4)), p.count + 4)
+            }
+            if rest.hasPrefix("[x] ") || rest.hasPrefix("[X] ") {
+                return (true, String(rest.dropFirst(4)), p.count + 4)
+            }
+        }
+        return nil
     }
 
     private static func parseBullet(_ s: String) -> Int? {

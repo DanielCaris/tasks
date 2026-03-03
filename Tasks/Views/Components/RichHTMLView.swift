@@ -9,6 +9,8 @@ struct RichHTMLView: NSViewRepresentable {
     let jiraEmail: String?
     let jiraToken: String?
     var colorScheme: ColorScheme = .light
+    var onCheckboxToggle: ((Int, Bool) -> Void)? = nil
+    var onDoubleClick: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -17,6 +19,8 @@ struct RichHTMLView: NSViewRepresentable {
             config.setURLSchemeHandler(handler, forURLScheme: "jira-image")
         }
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
+        config.userContentController.add(context.coordinator, name: "checkboxToggled")
+        config.userContentController.add(context.coordinator, name: "doubleClick")
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
@@ -27,6 +31,8 @@ struct RichHTMLView: NSViewRepresentable {
     func updateNSView(_ webView: WKWebView, context: Context) {
         let isDark = colorScheme == .dark || NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         context.coordinator.isDark = isDark
+        context.coordinator.onCheckboxToggle = onCheckboxToggle
+        context.coordinator.onDoubleClick = onDoubleClick
         webView.appearance = isDark ? NSAppearance(named: .darkAqua) : NSAppearance(named: .aqua)
 
         let textColor = isDark ? "#ffffff" : "#1d1d1f"
@@ -51,11 +57,33 @@ struct RichHTMLView: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        Coordinator(onCheckboxToggle: onCheckboxToggle, onDoubleClick: onDoubleClick)
     }
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var isDark = false
+        var onCheckboxToggle: ((Int, Bool) -> Void)?
+        var onDoubleClick: (() -> Void)?
+
+        init(onCheckboxToggle: ((Int, Bool) -> Void)? = nil, onDoubleClick: (() -> Void)? = nil) {
+            self.onCheckboxToggle = onCheckboxToggle
+            self.onDoubleClick = onDoubleClick
+        }
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            if message.name == "checkboxToggled",
+               let body = message.body as? [String: Any],
+               let index = body["index"] as? Int,
+               let checked = body["checked"] as? Bool {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onCheckboxToggle?(index, checked)
+                }
+            } else if message.name == "doubleClick" {
+                DispatchQueue.main.async { [weak self] in
+                    self?.onDoubleClick?()
+                }
+            }
+        }
 
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             if navigationAction.navigationType == .linkActivated,
@@ -72,6 +100,7 @@ struct RichHTMLView: NSViewRepresentable {
             let color = isDark ? "#ffffff" : "#1d1d1f"
             let script = """
             (function(){
+                if(!document.body)return;
                 document.body.style.color='\(color)';
                 document.body.style.backgroundColor='transparent';
                 var all=document.querySelectorAll('*');
@@ -81,6 +110,23 @@ struct RichHTMLView: NSViewRepresentable {
                 }
                 var links=document.querySelectorAll('a');
                 for(var j=0;j<links.length;j++){links[j].style.color='#64d2ff';}
+                var checkboxes=document.querySelectorAll('.adf-task-checkbox');
+                for(var k=0;k<checkboxes.length;k++){
+                    (function(cb){
+                        cb.onclick=function(e){e.stopPropagation();};
+                        cb.onchange=function(){
+                            var idx=parseInt(this.getAttribute('data-task-index'),10);
+                            if(!isNaN(idx)&&window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.checkboxToggled){
+                                window.webkit.messageHandlers.checkboxToggled.postMessage({index:idx,checked:this.checked});
+                            }
+                        };
+                    })(checkboxes[k]);
+                }
+                document.body.ondblclick=function(){
+                    if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.doubleClick){
+                        window.webkit.messageHandlers.doubleClick.postMessage({});
+                    }
+                };
             })();
             """
             webView.evaluateJavaScript(script, completionHandler: nil)
@@ -93,6 +139,8 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
     private let baseURL: String
     private let email: String
     private let apiToken: String
+    private let stoppedTaskIds = NSLock()
+    private var stoppedIds = Set<ObjectIdentifier>()
 
     init(baseURL: String, email: String, apiToken: String) {
         var url = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -102,6 +150,18 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
         self.baseURL = url
         self.email = email
         self.apiToken = apiToken
+    }
+
+    private func isStopped(_ task: WKURLSchemeTask) -> Bool {
+        stoppedTaskIds.lock()
+        defer { stoppedTaskIds.unlock() }
+        return stoppedIds.contains(ObjectIdentifier(task as AnyObject))
+    }
+
+    private func markStopped(_ task: WKURLSchemeTask) {
+        stoppedTaskIds.lock()
+        stoppedIds.insert(ObjectIdentifier(task as AnyObject))
+        stoppedTaskIds.unlock()
     }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
@@ -128,16 +188,14 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
             request.setValue("Basic \(credData.base64EncodedString())", forHTTPHeaderField: "Authorization")
         }
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            guard let self else {
-                urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "Handler no disponible"]))
-                return
-            }
+            guard let self else { return }
+            if self.isStopped(urlSchemeTask) { return }
             if let error = error {
-                urlSchemeTask.didFailWithError(error)
+                if !self.isStopped(urlSchemeTask) { urlSchemeTask.didFailWithError(error) }
                 return
             }
             guard let httpResponse = response as? HTTPURLResponse else {
-                urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "Respuesta inválida"]))
+                if !self.isStopped(urlSchemeTask) { urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "Respuesta inválida"])) }
                 return
             }
             if httpResponse.statusCode == 303, let location = httpResponse.value(forHTTPHeaderField: "Location"), let redirectURL = URL(string: location) {
@@ -149,16 +207,18 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
                     redirectRequest.setValue("Basic \(credData.base64EncodedString())", forHTTPHeaderField: "Authorization")
                 }
                 URLSession.shared.dataTask(with: redirectRequest) { redirectData, redirectResponse, redirectError in
+                    if self.isStopped(urlSchemeTask) { return }
                     if let redirectError = redirectError {
-                        urlSchemeTask.didFailWithError(redirectError)
+                        if !self.isStopped(urlSchemeTask) { urlSchemeTask.didFailWithError(redirectError) }
                         return
                     }
                     guard let redirectData = redirectData,
                           let r = redirectResponse as? HTTPURLResponse,
                           (200...299).contains(r.statusCode) else {
-                        urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "No se pudo cargar la imagen"]))
+                        if !self.isStopped(urlSchemeTask) { urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "No se pudo cargar la imagen"])) }
                         return
                     }
+                    if self.isStopped(urlSchemeTask) { return }
                     let mimeType = r.mimeType ?? "image/png"
                     urlSchemeTask.didReceive(URLResponse(url: url, mimeType: mimeType, expectedContentLength: redirectData.count, textEncodingName: nil))
                     urlSchemeTask.didReceive(redirectData)
@@ -168,6 +228,7 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
                 #if DEBUG
                 print("[JiraImage] jira-image://\(mediaId) → OK (\(data.count) bytes)")
                 #endif
+                if self.isStopped(urlSchemeTask) { return }
                 let mimeType = httpResponse.mimeType ?? "image/png"
                 urlSchemeTask.didReceive(URLResponse(url: url, mimeType: mimeType, expectedContentLength: data.count, textEncodingName: nil))
                 urlSchemeTask.didReceive(data)
@@ -176,10 +237,12 @@ private final class JiraImageURLSchemeHandler: NSObject, WKURLSchemeHandler {
                 #if DEBUG
                 print("[JiraImage] jira-image://\(mediaId) → error status=\(httpResponse.statusCode)")
                 #endif
-                urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "No se pudo cargar la imagen"]))
+                if !self.isStopped(urlSchemeTask) { urlSchemeTask.didFailWithError(NSError(domain: "JiraImage", code: -1, userInfo: [NSLocalizedDescriptionKey: "No se pudo cargar la imagen"])) }
             }
         }.resume()
     }
 
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        markStopped(urlSchemeTask)
+    }
 }
