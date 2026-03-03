@@ -47,6 +47,7 @@ struct TaskDetailView: View {
     @State private var isCreatingSubtask = false
     @State private var isAssigningToMe = false
     @State private var optimisticDescriptionADF: String? = nil
+    @State private var debouncedSaveTask: Task<Void, Never>? = nil
     @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
@@ -703,6 +704,8 @@ struct TaskDetailView: View {
         taskStore.updatePriority(task: task, urgency: urgency, impact: impact, effort: effort)
     }
 
+    private static let checkboxSaveDebounceSeconds: UInt64 = 1_500_000_000
+
     private func handleCheckboxToggleOptimistic(index: Int) {
         let jsonSource = optimisticDescriptionADF ?? task.descriptionADFJSON
         guard let json = jsonSource,
@@ -712,10 +715,22 @@ struct TaskDetailView: View {
               let jsonData = try? JSONSerialization.data(withJSONObject: modifiedADF),
               let jsonStr = String(data: jsonData, encoding: .utf8) else { return }
         optimisticDescriptionADF = jsonStr
-        let markdown = ADFToMarkdown.convert(adf: modifiedADF)
-        Task {
-            await taskStore.updateTaskInProvider(task: task, title: nil, description: markdown)
-            await MainActor.run { optimisticDescriptionADF = nil }
+
+        debouncedSaveTask?.cancel()
+        let capturedJson = jsonStr
+        let capturedTask = task
+        debouncedSaveTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: Self.checkboxSaveDebounceSeconds)
+            guard !Task.isCancelled else { return }
+            guard let j = capturedJson.data(using: .utf8),
+                  let a = try? JSONSerialization.jsonObject(with: j) as? [String: Any] else {
+                debouncedSaveTask = nil
+                return
+            }
+            let markdown = ADFToMarkdown.convert(adf: a)
+            await taskStore.updateTaskInProvider(task: capturedTask, title: nil, description: markdown)
+            optimisticDescriptionADF = nil
+            debouncedSaveTask = nil
         }
     }
 

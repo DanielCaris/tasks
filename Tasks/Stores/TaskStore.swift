@@ -241,10 +241,15 @@ final class TaskStore: ObservableObject {
             }
             // Re-fetch el issue para obtener descriptionHTML con imágenes resueltas (attachmentMap, signed URLs).
             // ADFToHTML sin esos datos genera jira-image://uuid que falla (la API espera attachment ID numérico).
+            // Importante: preservar description que acabamos de enviar; el GET puede devolver datos stale por latencia.
             let savedMarkdown = task.descriptionMarkdown
+            let savedADF = task.descriptionADFJSON
+            let savedText = task.descriptionText
             if let dto = try? await provider.fetchIssue(externalId: task.externalId) {
                 await mergeWithLocalData(dtos: [dto], providerId: type(of: provider).providerId)
                 task.descriptionMarkdown = savedMarkdown
+                task.descriptionADFJSON = savedADF
+                task.descriptionText = savedText
             }
             task.lastSyncedAt = Date()
             try? modelContext.save()
