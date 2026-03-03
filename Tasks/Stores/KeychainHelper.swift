@@ -34,6 +34,14 @@ enum KeychainHelper {
         suite.stringArray(forKey: prefix + "status_filters") ?? []
     }
 
+    static func saveSubtaskStatusExclusions(_ exclusions: [String]) {
+        suite.set(exclusions, forKey: prefix + "subtask_status_exclusions")
+    }
+
+    static func loadSubtaskStatusExclusions() -> [String] {
+        suite.stringArray(forKey: prefix + "subtask_status_exclusions") ?? []
+    }
+
     static func saveJQL(_ jql: String) {
         suite.set(jql, forKey: prefix + "jql")
     }
@@ -52,5 +60,22 @@ enum KeychainHelper {
 
     static func deleteCurrentUserDisplayName() {
         suite.removeObject(forKey: prefix + "current_user_display_name")
+    }
+
+    /// Orden de estados por proyecto (para subtareas). Clave: projectKey, valor: [status] ordenados.
+    private static let statusOrdersKey = prefix + "status_orders"
+
+    static func saveStatusOrder(projectKey: String, order: [String]) {
+        var dict = loadAllStatusOrders()
+        dict[projectKey] = order
+        suite.set(dict, forKey: statusOrdersKey)
+    }
+
+    static func loadStatusOrder(projectKey: String) -> [String] {
+        loadAllStatusOrders()[projectKey] ?? []
+    }
+
+    private static func loadAllStatusOrders() -> [String: [String]] {
+        suite.dictionary(forKey: statusOrdersKey) as? [String: [String]] ?? [:]
     }
 }

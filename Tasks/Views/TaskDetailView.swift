@@ -9,6 +9,7 @@ enum SubtaskSortOrder: String, CaseIterable {
     case titleDesc = "Por título (Z→A)"
     case statusAsc = "Por estado (A→Z)"
     case statusDesc = "Por estado (Z→A)"
+    case statusCustom = "Por orden de estado"
 }
 
 struct TaskDetailView: View {
@@ -476,7 +477,8 @@ struct TaskDetailView: View {
     private var subtasksSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             let subsRaw = taskStore.subtasks(for: task)
-            let subs = sortedSubtasks(subsRaw)
+            let subsFiltered = subsRaw.filter { !taskStore.excludedSubtaskStatuses.contains($0.status) }
+            let subs = sortedSubtasks(subsFiltered)
             HStack {
                 Text("Subtareas")
                     .font(.headline)
@@ -517,9 +519,64 @@ struct TaskDetailView: View {
                     .buttonStyle(.borderless)
                 }
             }
+            if !taskStore.excludedSubtaskStatuses.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Ocultar status:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    FlowLayout(spacing: 6) {
+                        ForEach(Array(taskStore.excludedSubtaskStatuses).sorted(), id: \.self) { status in
+                            StatusPill(label: status) {
+                                var next = taskStore.excludedSubtaskStatuses
+                                next.remove(status)
+                                taskStore.setSubtaskStatusExclusions(next)
+                            }
+                        }
+                    }
+                    HStack(spacing: 8) {
+                        Menu {
+                            ForEach(availableSubtaskStatusesToExclude, id: \.self) { status in
+                                Button(status) {
+                                    var next = taskStore.excludedSubtaskStatuses
+                                    next.insert(status)
+                                    taskStore.setSubtaskStatusExclusions(next)
+                                }
+                            }
+                            if availableSubtaskStatusesToExclude.isEmpty && !taskStore.knownStatuses.isEmpty {
+                                Text("Todos agregados")
+                                    .disabled(true)
+                            }
+                        } label: {
+                            Label("Agregar status a ocultar", systemImage: "plus.circle")
+                                .font(.caption)
+                        }
+                        .disabled(availableSubtaskStatusesToExclude.isEmpty && !taskStore.knownStatuses.isEmpty)
+                    }
+                }
+            } else {
+                HStack(spacing: 8) {
+                    Menu {
+                        ForEach(availableSubtaskStatusesToExclude, id: \.self) { status in
+                            Button(status) {
+                                var next = taskStore.excludedSubtaskStatuses
+                                next.insert(status)
+                                taskStore.setSubtaskStatusExclusions(next)
+                            }
+                        }
+                        if availableSubtaskStatusesToExclude.isEmpty && !taskStore.knownStatuses.isEmpty {
+                            Text("Todos agregados")
+                                .disabled(true)
+                        }
+                    } label: {
+                        Label("Ocultar status (ej: Done)", systemImage: "line.3.horizontal.decrease.circle")
+                            .font(.caption)
+                    }
+                    .disabled(availableSubtaskStatusesToExclude.isEmpty && !taskStore.knownStatuses.isEmpty)
+                }
+            }
             if subs.isEmpty && !isLoadingSubtasks {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Sin subtareas")
+                    Text(subsRaw.isEmpty ? "Sin subtareas" : "Todas las subtareas están ocultas por el filtro")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     if task.parentExternalId == nil {
@@ -597,6 +654,11 @@ struct TaskDetailView: View {
         }
     }
 
+    private var availableSubtaskStatusesToExclude: [String] {
+        let all = taskStore.knownStatuses
+        return all.filter { !taskStore.excludedSubtaskStatuses.contains($0) }
+    }
+
     private func sortedSubtasks(_ items: [TaskItem]) -> [TaskItem] {
         switch subtaskSortOrder {
         case .externalIdAsc:
@@ -611,6 +673,14 @@ struct TaskDetailView: View {
             return items.sorted { $0.status.localizedCompare($1.status) == .orderedAscending }
         case .statusDesc:
             return items.sorted { $0.status.localizedCompare($1.status) == .orderedDescending }
+        case .statusCustom:
+            let projectKey = task.externalId.split(separator: "-").first.map(String.init) ?? ""
+            return items.sorted { a, b in
+                let ia = taskStore.statusSortIndex(for: a.status, projectKey: projectKey)
+                let ib = taskStore.statusSortIndex(for: b.status, projectKey: projectKey)
+                if ia != ib { return ia < ib }
+                return a.priorityScore > b.priorityScore
+            }
         }
     }
 

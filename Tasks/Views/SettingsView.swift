@@ -39,12 +39,14 @@ struct SettingsView: View {
     @State private var selectedStatusFilters: Set<String> = []
     @State private var newStatusInput = ""
     @State private var selectedTab = 0
+    @State private var statusOrdersByProject: [String: [String]] = [:]
 
     var body: some View {
         VStack(spacing: 0) {
             Picker("", selection: $selectedTab) {
                 Text("Listado").tag(0)
                 Text("Conexión").tag(1)
+                Text("Orden por estado").tag(2)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -55,8 +57,10 @@ struct SettingsView: View {
             Group {
                 if selectedTab == 0 {
                     listadoTab
-                } else {
+                } else if selectedTab == 1 {
                     conexionTab
+                } else {
+                    ordenPorEstadoTab
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -79,6 +83,7 @@ struct SettingsView: View {
             selectedStatusFilters = taskStore.selectedStatusFilters
             testMessage = nil
             testSuccess = nil
+            loadAllStatusOrders()
         }
         .onChange(of: jql) { _, _ in applyChanges() }
         .onChange(of: jiraURL) { _, _ in applyChanges() }
@@ -90,20 +95,21 @@ struct SettingsView: View {
     private var listadoTab: some View {
         Form {
             Section {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 6) {
                     Text("Solo se mostrarán tareas con estos status. Vacío = mostrar todas.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
-                    FlowLayout(spacing: 6) {
-                        ForEach(Array(selectedStatusFilters).sorted(), id: \.self) { status in
-                            StatusPill(label: status) {
-                                selectedStatusFilters.remove(status)
+                    HStack(alignment: .center, spacing: 8) {
+                        FlowLayout(spacing: 6) {
+                            ForEach(Array(selectedStatusFilters).sorted(), id: \.self) { status in
+                                StatusPill(label: status) {
+                                    selectedStatusFilters.remove(status)
+                                }
                             }
                         }
-                    }
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                    HStack(spacing: 8) {
                         Menu {
                             ForEach(availableStatusesToAdd, id: \.self) { status in
                                 Button(status) {
@@ -121,6 +127,7 @@ struct SettingsView: View {
 
                         TextField("O escribe uno nuevo", text: $newStatusInput)
                             .textFieldStyle(.roundedBorder)
+                            .frame(minWidth: 100)
                             .onSubmit { addCustomStatus() }
 
                         Button("Agregar") {
@@ -164,6 +171,91 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private var ordenPorEstadoTab: some View {
+        Form {
+            Section {
+                Text("Orden de estados para subtareas (primero = más arriba). Cada proyecto tiene su propia configuración.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if taskStore.knownProjectKeys.isEmpty {
+                Section {
+                    ContentUnavailableView(
+                        "Sin proyectos",
+                        systemImage: "folder.badge.questionmark",
+                        description: Text("Sincroniza tareas desde Jira para ver los proyectos aquí.")
+                    )
+                }
+            } else {
+                ForEach(taskStore.knownProjectKeys, id: \.self) { projectKey in
+                    Section {
+                        projectStatusOrderSection(projectKey: projectKey)
+                    } header: {
+                        Text(projectKey)
+                            .font(.headline)
+                    }
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear { loadAllStatusOrders() }
+    }
+
+    private func projectStatusOrderSection(projectKey: String) -> some View {
+        let order = statusOrdersByProject[projectKey] ?? []
+        return Group {
+            List {
+                ForEach(order, id: \.self) { status in
+                    Text(status)
+                        .font(.subheadline)
+                }
+                .onMove { from, to in
+                    var newOrder = order
+                    newOrder.move(fromOffsets: from, toOffset: to)
+                    updateAndSaveOrder(projectKey: projectKey, order: newOrder)
+                }
+                .onDelete { indexSet in
+                    var newOrder = order
+                    newOrder.remove(atOffsets: indexSet)
+                    updateAndSaveOrder(projectKey: projectKey, order: newOrder)
+                }
+            }
+            .listStyle(.plain)
+            .frame(minHeight: CGFloat(min(order.count, 4)) * 28)
+
+            Menu {
+                ForEach(taskStore.knownStatuses.filter { !order.contains($0) }, id: \.self) { status in
+                    Button(status) {
+                        var newOrder = order
+                        newOrder.append(status)
+                        updateAndSaveOrder(projectKey: projectKey, order: newOrder)
+                    }
+                }
+                if taskStore.knownStatuses.filter({ !order.contains($0) }).isEmpty && !taskStore.knownStatuses.isEmpty {
+                    Text("Todos agregados")
+                        .disabled(true)
+                }
+            } label: {
+                Label("Agregar status", systemImage: "plus.circle")
+            }
+            .disabled(taskStore.knownStatuses.filter { !order.contains($0) }.isEmpty)
+        }
+    }
+
+    private func loadAllStatusOrders() {
+        var dict: [String: [String]] = [:]
+        for key in taskStore.knownProjectKeys {
+            dict[key] = KeychainHelper.loadStatusOrder(projectKey: key)
+        }
+        statusOrdersByProject = dict
+    }
+
+    private func updateAndSaveOrder(projectKey: String, order: [String]) {
+        statusOrdersByProject = statusOrdersByProject.merging([projectKey: order]) { _, new in new }
+        KeychainHelper.saveStatusOrder(projectKey: projectKey, order: order)
     }
 
     private var conexionTab: some View {

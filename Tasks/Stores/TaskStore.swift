@@ -8,6 +8,8 @@ final class TaskStore: ObservableObject {
 
     @Published var tasks: [TaskItem] = []
     @Published var selectedStatusFilters: Set<String> = []
+    /// Statuses a ocultar en la lista de subtareas. Vacío = mostrar todas.
+    @Published var excludedSubtaskStatuses: Set<String> = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var isMiniViewVisible = false
@@ -46,6 +48,19 @@ final class TaskStore: ObservableObject {
         Array(Set(tasks.map(\.status))).sorted()
     }
 
+    /// Claves de proyecto extraídas de los externalId de las tareas (ej: "PROJ-123" → "PROJ").
+    var knownProjectKeys: [String] {
+        Array(Set(tasks.compactMap { task in
+            task.externalId.split(separator: "-").first.map(String.init)
+        })).sorted()
+    }
+
+    /// Índice de orden para un status en un proyecto. Mayor índice = va al final.
+    func statusSortIndex(for status: String, projectKey: String) -> Int {
+        let order = KeychainHelper.loadStatusOrder(projectKey: projectKey)
+        return order.firstIndex(of: status) ?? Int.max
+    }
+
     var providerId: String? {
         provider.map { type(of: $0).providerId }
     }
@@ -53,6 +68,12 @@ final class TaskStore: ObservableObject {
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
         selectedStatusFilters = Set(KeychainHelper.loadStatusFilters())
+        excludedSubtaskStatuses = Set(KeychainHelper.loadSubtaskStatusExclusions())
+    }
+
+    func setSubtaskStatusExclusions(_ exclusions: Set<String>) {
+        excludedSubtaskStatuses = exclusions
+        KeychainHelper.saveSubtaskStatusExclusions(Array(exclusions))
     }
 
     func setStatusFilters(_ filters: Set<String>) {
