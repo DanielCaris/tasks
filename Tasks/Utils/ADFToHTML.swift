@@ -45,7 +45,7 @@ enum ADFToHTML {
 
         case "paragraph":
             let inner = content.compactMap { inlineToHTML($0, baseURL: baseURL) }.joined()
-            if inner.isEmpty { return nil }
+            if inner.isEmpty { return "<br>" }
             return "<p style='margin: 0 0 0.35em;'>\(inner)</p>"
 
         case "heading":

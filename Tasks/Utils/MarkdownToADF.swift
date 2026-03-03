@@ -19,8 +19,9 @@ enum MarkdownToADF {
             let line = lines[i]
             let trimmed = line.trimmingCharacters(in: .whitespaces)
 
-            // Línea vacía → omitir (no crear párrafos vacíos que añaden líneas extra al guardar)
+            // Línea vacía → párrafo vacío para preservar el espaciado en preview
             if trimmed.isEmpty {
+                content.append(["type": "paragraph", "content": [] as [[String: Any]]])
                 i += 1
                 continue
             }
@@ -187,8 +188,15 @@ enum MarkdownToADF {
                 i += 1
                 continue
             }
-            let paraText = paraLines.joined(separator: " ")
-            let (inlineContent, _) = parseInline(paraText)
+            // Unir líneas con hardBreak para preservar saltos de línea en preview
+            var inlineContent: [[String: Any]] = []
+            for (idx, line) in paraLines.enumerated() {
+                let (parsed, _) = parseInline(line)
+                inlineContent.append(contentsOf: parsed)
+                if idx < paraLines.count - 1 {
+                    inlineContent.append(["type": "hardBreak"])
+                }
+            }
             content.append(["type": "paragraph", "content": inlineContent])
         }
 
