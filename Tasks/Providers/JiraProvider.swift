@@ -423,9 +423,38 @@ final class JiraProvider: IssueProviderProtocol {
         }
         struct MyselfResponse: Decodable {
             let accountId: String
+            let displayName: String?
         }
         let myself = try JSONDecoder().decode(MyselfResponse.self, from: data)
         return myself.accountId
+    }
+
+    /// Obtiene el displayName del usuario actual para comparar con assignee.
+    func fetchCurrentUserDisplayName() async throws -> String? {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/myself") else {
+            throw JiraError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+        struct MyselfResponse: Decodable {
+            let displayName: String?
+        }
+        let myself = try JSONDecoder().decode(MyselfResponse.self, from: data)
+        return myself.displayName
     }
 
     func deleteIssue(externalId: String) async throws -> Bool {

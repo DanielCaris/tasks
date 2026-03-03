@@ -5,17 +5,55 @@ struct MainView: View {
     @EnvironmentObject private var taskStore: TaskStore
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
-    @State private var selectedTask: TaskItem?
+    @State private var selectedTaskId: String?
     @State private var showingSettings = false
     @State private var showingCreateTask = false
 
+    /// Sidebar lee directo de SwiftData: evita que mutaciones de taskStore.tasks
+    /// (fetchSubtasks, sortByPriority, etc.) hagan desaparecer items.
+    @Query(filter: #Predicate<TaskItem> { $0.parentExternalId == nil }, sort: \TaskItem.taskId)
+    private var parentTasksFromDB: [TaskItem]
+
+    private var sidebarTasks: [TaskItem] {
+        let filtered = taskStore.selectedStatusFilters.isEmpty
+            ? parentTasksFromDB
+            : parentTasksFromDB.filter { taskStore.selectedStatusFilters.contains($0.status) }
+        return filtered.sorted { $0.priorityScore > $1.priorityScore }
+    }
+
+    private var selectedTask: TaskItem? {
+        guard let id = selectedTaskId else { return nil }
+        return sidebarTasks.first { $0.taskId == id }
+            ?? taskStore.tasks.first { $0.taskId == id }
+    }
+
+    /// Parent activo: el seleccionado si es padre, o el padre de la subtask seleccionada.
+    private var activeParentForSubtasks: TaskItem? {
+        guard let task = selectedTask else { return nil }
+        if task.parentExternalId == nil { return task }
+        return sidebarTasks.first { $0.externalId == task.parentExternalId }
+    }
+
     var body: some View {
         NavigationSplitView {
-            List(selection: $selectedTask) {
+            List(selection: $selectedTaskId) {
                 Section("Tareas") {
-                    ForEach(taskStore.filteredTasks) { task in
-                        TaskRowView(task: task, taskStore: taskStore)
-                            .tag(task)
+                    ForEach(sidebarTasks, id: \.taskId) { parent in
+                        TaskRowView(task: parent, taskStore: taskStore)
+                            .tag(parent.taskId)
+
+                        // Mostrar subtareas del parent cuando está activo (seleccionado o padre de la subtask vista).
+                        if activeParentForSubtasks?.taskId == parent.taskId {
+                            ForEach(taskStore.subtasks(for: parent), id: \.taskId) { sub in
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.turn.down.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                    TaskRowView(task: sub, taskStore: taskStore)
+                                }
+                                .tag(sub.taskId)
+                            }
+                        }
                     }
                 }
             }
@@ -23,7 +61,7 @@ struct MainView: View {
             .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
             if let task = selectedTask {
-                TaskDetailView(task: task, taskStore: taskStore, onSelectSubtask: { selectedTask = $0 }, onSelectParent: { selectedTask = $0 })
+                TaskDetailView(task: task, taskStore: taskStore, onSelectSubtask: { selectedTaskId = $0.taskId }, onSelectParent: { selectedTaskId = $0.taskId })
                 .id(task.taskId)
             } else {
                 ContentUnavailableView(
@@ -115,8 +153,12 @@ struct MainView: View {
         if let url, let email, let token, !token.isEmpty {
             let jql = KeychainHelper.loadJQL() ?? "assignee = currentUser() ORDER BY updated DESC"
             taskStore.setProvider(JiraProvider(baseURL: url, email: email, apiToken: token, jql: jql))
-            if taskStore.tasks.isEmpty {
-                Task { await taskStore.fetchFromProvider() }
+            Task {
+                if taskStore.tasks.isEmpty {
+                    await taskStore.fetchFromProvider()
+                } else {
+                    await taskStore.loadCurrentUserDisplayNameIfNeeded()
+                }
             }
         }
     }

@@ -269,7 +269,8 @@ struct TaskDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                if task.providerId == JiraProvider.providerId {
+                if task.providerId == JiraProvider.providerId,
+                   !isAssignedToCurrentUser {
                     Button {
                         Task { await assignToMe() }
                     } label: {
@@ -457,6 +458,13 @@ struct TaskDetailView: View {
             await loadTransitions() // Caché invalidada tras la transición; recargar para el nuevo status
             isTransitioning = false
         }
+    }
+
+    private var isAssignedToCurrentUser: Bool {
+        guard let assignee = task.assignee?.trimmingCharacters(in: .whitespaces),
+              let current = taskStore.currentUserDisplayName?.trimmingCharacters(in: .whitespaces),
+              !assignee.isEmpty, !current.isEmpty else { return false }
+        return assignee.localizedCaseInsensitiveCompare(current) == .orderedSame
     }
 
     private func assignToMe() async {

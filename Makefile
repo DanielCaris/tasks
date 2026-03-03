@@ -1,4 +1,4 @@
-.PHONY: build build-release dist run run-attached clean
+.PHONY: build build-release dist release run run-attached clean
 
 build:
 	xcodebuild -scheme Tasks -configuration Debug build
@@ -16,6 +16,9 @@ dist: build-release
 		cd dist && zip -r Tasks.zip Tasks.app && cd ..; \
 		echo "✓ dist/Tasks.zip creado (listo para compartir)"; \
 	else echo "✗ No se encontró Tasks.app (Release)"; exit 1; fi
+
+# Alias de dist para generar release
+release: dist
 
 run: build
 	@osascript -e 'tell application "Tasks" to quit' 2>/dev/null || true; \

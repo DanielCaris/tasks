@@ -11,6 +11,8 @@ final class TaskStore: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var isMiniViewVisible = false
+    /// Display name del usuario actual en Jira (para ocultar "Asignar a mí" cuando ya está asignado).
+    @Published var currentUserDisplayName: String?
 
     private var provider: (any IssueProviderProtocol)?
     private var transitionsCache: [String: [TransitionOption]] = [:]
@@ -45,6 +47,12 @@ final class TaskStore: ObservableObject {
         self.provider = provider
     }
 
+    /// Carga el display name del usuario actual (Jira). Necesario para ocultar "Asignar a mí" cuando ya está asignado.
+    func loadCurrentUserDisplayNameIfNeeded() async {
+        guard let jira = provider as? JiraProvider else { return }
+        currentUserDisplayName = try? await jira.fetchCurrentUserDisplayName()
+    }
+
     func fetchFromProvider() async {
         guard let provider else {
             let msg = "No hay proveedor configurado. Configura Jira en Ajustes."
@@ -61,6 +69,9 @@ final class TaskStore: ObservableObject {
             await mergeWithLocalData(dtos: dtos, providerId: type(of: provider).providerId)
             await loadTasks()
             transitionsCache.removeAll()
+            if let jira = provider as? JiraProvider {
+                currentUserDisplayName = try? await jira.fetchCurrentUserDisplayName()
+            }
         } catch {
             AppLog.error(error.localizedDescription, context: "fetchFromProvider")
             errorMessage = error.localizedDescription
@@ -307,9 +318,21 @@ final class TaskStore: ObservableObject {
         guard let provider = provider as? JiraProvider else { return [] }
         do {
             let dtos = try await provider.fetchSubtasks(parentKey: task.externalId)
+            let existingIds = Set(tasks.map(\.taskId))
             await mergeWithLocalData(dtos: dtos, providerId: JiraProvider.providerId)
             try? modelContext.save()
-            await loadTasks()
+            // Añadir solo las nuevas subtareas al array, sin reemplazar todo.
+            // Evita que loadTasks() cause que el parent desaparezca del sidebar.
+            let parentId = task.externalId
+            let descriptor = FetchDescriptor<TaskItem>(
+                predicate: #Predicate<TaskItem> { $0.parentExternalId == parentId },
+                sortBy: [SortDescriptor(\.taskId)]
+            )
+            let newSubtasks = (try? modelContext.fetch(descriptor)) ?? []
+            for sub in newSubtasks where !existingIds.contains(sub.taskId) {
+                tasks.append(sub)
+            }
+            sortByPriority()
             return tasks.filter { $0.parentExternalId == task.externalId }
         } catch {
             AppLog.error(error.localizedDescription, context: "fetchSubtasks(\(task.externalId))")

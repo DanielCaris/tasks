@@ -7,6 +7,7 @@
 | `make build` | Compiles the project (Debug configuration) |
 | `make build-release` | Compiles the project (Release configuration) |
 | `make dist` | Build Release y copia Tasks.app + Tasks.zip a `dist/` para compartir |
+| `make release` | Alias de `make dist` |
 | `make run` | Builds and launches the Tasks app |
 | `make run-attached` | Builds and runs the app in the terminal (logs visibles, como en Xcode) |
 | `make clean` | Cleans the build artifacts |
