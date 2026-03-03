@@ -64,10 +64,23 @@ final class TaskStore: ObservableObject {
         self.provider = provider
     }
 
-    /// Carga el display name del usuario actual (Jira). Necesario para ocultar "Asignar a mí" cuando ya está asignado.
-    func loadCurrentUserDisplayNameIfNeeded() async {
-        guard let jira = provider as? JiraProvider else { return }
-        currentUserDisplayName = try? await jira.fetchCurrentUserDisplayName()
+    /// Carga el display name del usuario actual (Jira). Usa caché si existe y refresca en background.
+    func loadCurrentUserDisplayNameIfNeeded() {
+        guard provider is JiraProvider else { return }
+        // Usar caché inmediatamente para no bloquear la UI
+        if let cached = KeychainHelper.loadCurrentUserDisplayName(), !cached.isEmpty {
+            currentUserDisplayName = cached
+        }
+        // Refrescar en background
+        Task {
+            guard let jira = provider as? JiraProvider else { return }
+            if let name = try? await jira.fetchCurrentUserDisplayName(), !name.isEmpty {
+                await MainActor.run {
+                    currentUserDisplayName = name
+                    KeychainHelper.saveCurrentUserDisplayName(name)
+                }
+            }
+        }
     }
 
     func fetchFromProvider() async {
@@ -86,8 +99,10 @@ final class TaskStore: ObservableObject {
             await mergeWithLocalData(dtos: dtos, providerId: type(of: provider).providerId)
             await loadTasks()
             transitionsCache.removeAll()
-            if let jira = provider as? JiraProvider {
-                currentUserDisplayName = try? await jira.fetchCurrentUserDisplayName()
+            if let jira = provider as? JiraProvider,
+               let name = try? await jira.fetchCurrentUserDisplayName(), !name.isEmpty {
+                currentUserDisplayName = name
+                KeychainHelper.saveCurrentUserDisplayName(name)
             }
         } catch {
             AppLog.error(error.localizedDescription, context: "fetchFromProvider")

@@ -41,4 +41,12 @@ enum KeychainHelper {
     static func loadJQL() -> String? {
         suite.string(forKey: prefix + "jql")
     }
+
+    static func saveCurrentUserDisplayName(_ name: String) {
+        suite.set(name, forKey: prefix + "current_user_display_name")
+    }
+
+    static func loadCurrentUserDisplayName() -> String? {
+        suite.string(forKey: prefix + "current_user_display_name")
+    }
 }

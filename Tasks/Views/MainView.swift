@@ -101,7 +101,7 @@ struct MainView: View {
         .animation(.easeInOut(duration: 0.25), value: taskStore.errorMessage != nil)
         .task {
             await taskStore.loadTasks()
-            setupProviderIfNeeded()
+            await setupProviderIfNeeded()
         }
         .onChange(of: taskStore.isMiniViewVisible) { _, visible in
             if visible {
@@ -113,21 +113,19 @@ struct MainView: View {
         }
     }
 
-    private func setupProviderIfNeeded() {
+    private func setupProviderIfNeeded() async {
         let url = KeychainHelper.load(key: "jira_url")
         let email = KeychainHelper.load(key: "jira_email") ?? UserDefaults.standard.string(forKey: "jira_email")
         let token = KeychainHelper.load(key: "jira_api_token")
 
-        if let url, let email, let token, !token.isEmpty {
-            let jql = KeychainHelper.loadJQL() ?? "assignee = currentUser() ORDER BY updated DESC"
-            taskStore.setProvider(JiraProvider(baseURL: url, email: email, apiToken: token, jql: jql))
-            Task {
-                if taskStore.tasks.isEmpty {
-                    await taskStore.fetchFromProvider()
-                } else {
-                    await taskStore.loadCurrentUserDisplayNameIfNeeded()
-                }
-            }
+        guard let url, let email, let token, !token.isEmpty else { return }
+        let jql = KeychainHelper.loadJQL() ?? "assignee = currentUser() ORDER BY updated DESC"
+        taskStore.setProvider(JiraProvider(baseURL: url, email: email, apiToken: token, jql: jql))
+        if taskStore.tasks.isEmpty {
+            await taskStore.fetchFromProvider()
+        } else {
+            // Usa caché si existe; refresca en background
+            taskStore.loadCurrentUserDisplayNameIfNeeded()
         }
     }
 }
