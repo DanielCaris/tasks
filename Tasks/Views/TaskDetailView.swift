@@ -312,91 +312,7 @@ struct TaskDetailView: View {
             }
 
             if task.providerId == JiraProvider.providerId {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 8) {
-                        Text("Descripción")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
-                        if !isEditingDescription, (task.descriptionHTML != nil || task.descriptionADFJSON != nil || (task.descriptionText ?? "").isEmpty == false) {
-                            Button {
-                                editableDescription = Self.initialDescriptionMarkdown(for: task)
-                                isEditingDescription = true
-                            } label: {
-                                Label("Editar", systemImage: "pencil")
-                                    .font(.caption)
-                            }
-                            .buttonStyle(.link)
-                        }
-                        Spacer()
-                    }
-
-                    if isEditingDescription {
-                        Text("Puedes usar Markdown: **negrita**, *cursiva*, [enlaces](url), listas, etc.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.bottom, 4)
-                        TextEditor(text: $editableDescription)
-                            .font(.body)
-                            .fontDesign(.monospaced)
-                            .frame(minHeight: max(120, availableHeight * 0.5), alignment: .topLeading)
-                            .scrollContentBackground(.hidden)
-                            .padding(8)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-
-                        HStack(spacing: 8) {
-                            Button {
-                                saveToJira()
-                            } label: {
-                                Label {
-                                    Text("Guardar en Jira")
-                                } icon: {
-                                    if isSavingToJira {
-                                        ProgressView()
-                                            .controlSize(.small)
-                                    } else {
-                                        Image(systemName: "arrow.up.circle.fill")
-                                    }
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(isSavingToJira || !hasEdits)
-
-                            Button("Cancelar") {
-                                isEditingDescription = false
-                                editableDescription = Self.initialDescriptionMarkdown(for: task)
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    } else if let html = Self.descriptionHTMLForDisplay(task: task), !html.isEmpty {
-                        RichHTMLView(
-                            html: html,
-                            baseURL: KeychainHelper.load(key: "jira_url") ?? "",
-                            jiraEmail: KeychainHelper.load(key: "jira_email"),
-                            jiraToken: KeychainHelper.load(key: "jira_api_token"),
-                            colorScheme: colorScheme
-                        )
-                        .frame(maxWidth: .infinity, minHeight: availableHeight * 0.5, alignment: .topLeading)
-                        .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
-                    } else {
-                        Text(task.descriptionText ?? "Sin descripción")
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, minHeight: availableHeight * 0.5, alignment: .topLeading)
-                            .padding(8)
-                            .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
-
-                        Button {
-                            editableDescription = Self.initialDescriptionMarkdown(for: task)
-                            isEditingDescription = true
-                        } label: {
-                            Label("Editar descripción", systemImage: "pencil")
-                                .font(.caption)
-                        }
-                        .buttonStyle(.link)
-                    }
-                }
-                .padding(.top, 16)
+                descriptionSection(availableHeight: availableHeight)
             }
         }
         .onChange(of: task.title) { _, newValue in
@@ -411,6 +327,114 @@ struct TaskDetailView: View {
         .onChange(of: task.descriptionMarkdown) { _, _ in
             if !isEditingDescription { editableDescription = Self.initialDescriptionMarkdown(for: task) }
         }
+    }
+
+    private func descriptionSection(availableHeight: CGFloat) -> some View {
+        let descHeight = availableHeight * 0.5
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text("Descripción")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundStyle(.secondary)
+                if !isEditingDescription, (task.descriptionHTML != nil || task.descriptionADFJSON != nil || (task.descriptionText ?? "").isEmpty == false) {
+                    Button {
+                        editableDescription = Self.initialDescriptionMarkdown(for: task)
+                        isEditingDescription = true
+                    } label: {
+                        Label("Editar", systemImage: "pencil")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.link)
+                }
+                Spacer()
+            }
+
+            Group {
+                if isEditingDescription {
+                    descriptionEditContent(height: descHeight)
+                } else if let html = Self.descriptionHTMLForDisplay(task: task), !html.isEmpty {
+                    RichHTMLView(
+                        html: html,
+                        baseURL: KeychainHelper.load(key: "jira_url") ?? "",
+                        jiraEmail: KeychainHelper.load(key: "jira_email"),
+                        jiraToken: KeychainHelper.load(key: "jira_api_token"),
+                        colorScheme: colorScheme
+                    )
+                    .frame(maxWidth: .infinity, minHeight: descHeight, maxHeight: descHeight, alignment: .topLeading)
+                    .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
+                } else {
+                    descriptionReadContent(height: descHeight)
+                }
+            }
+            .frame(minHeight: descHeight)
+        }
+        .padding(.top, 16)
+    }
+
+    @ViewBuilder
+    private func descriptionEditContent(height: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Puedes usar Markdown: **negrita**, *cursiva*, [enlaces](url), listas, etc.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 4)
+            TextEditor(text: $editableDescription)
+                .font(.body)
+                .fontDesign(.monospaced)
+                .frame(minHeight: max(120, height - 76), alignment: .topLeading)
+                .scrollContentBackground(.hidden)
+                .padding(8)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+
+            HStack(spacing: 8) {
+                Button {
+                    saveToJira()
+                } label: {
+                    Label {
+                        Text("Guardar en Jira")
+                    } icon: {
+                        if isSavingToJira {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "arrow.up.circle.fill")
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(isSavingToJira || !hasEdits)
+
+                Button("Cancelar") {
+                    isEditingDescription = false
+                    editableDescription = Self.initialDescriptionMarkdown(for: task)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .frame(height: height)
+    }
+
+    @ViewBuilder
+    private func descriptionReadContent(height: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(task.descriptionText ?? "Sin descripción")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .padding(8)
+                .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
+
+            Button {
+                editableDescription = Self.initialDescriptionMarkdown(for: task)
+                isEditingDescription = true
+            } label: {
+                Label("Editar descripción", systemImage: "pencil")
+                    .font(.caption)
+            }
+            .buttonStyle(.link)
+        }
+        .frame(height: height)
     }
 
     private var hasEdits: Bool {
