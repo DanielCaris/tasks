@@ -61,26 +61,24 @@ struct TaskDetailView: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                    headerSection(availableHeight: geo.size.height)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                headerSection()
 
-                    if task.providerId == JiraProvider.providerId {
-                        subtasksSection
-                    }
+                if task.providerId == JiraProvider.providerId {
+                    subtasksSection()
                 }
-                .padding(24)
             }
-            .onChange(of: task.urgency) { _, newValue in
-                if let v = newValue { urgency = v }
-            }
-            .onChange(of: task.impact) { _, newValue in
-                if let v = newValue { impact = v }
-            }
-            .onChange(of: task.effort) { _, newValue in
-                if let v = newValue { effort = v }
-            }
+            .padding(24)
+        }
+        .onChange(of: task.urgency) { _, newValue in
+            if let v = newValue { urgency = v }
+        }
+        .onChange(of: task.impact) { _, newValue in
+            if let v = newValue { impact = v }
+        }
+        .onChange(of: task.effort) { _, newValue in
+            if let v = newValue { effort = v }
         }
         .background(.thinMaterial.opacity(0.5))
         .sheet(isPresented: $showingAddSubtask) {
@@ -163,7 +161,7 @@ struct TaskDetailView: View {
         }
     }
 
-    private func headerSection(availableHeight: CGFloat = 600) -> some View {
+    private func headerSection() -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 breadcrumbView
@@ -339,7 +337,7 @@ struct TaskDetailView: View {
                         TextEditor(text: $editableDescription)
                             .font(.body)
                             .fontDesign(.monospaced)
-                            .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280), alignment: .topLeading)
+                            .frame(minHeight: 120, alignment: .topLeading)
                             .scrollContentBackground(.hidden)
                             .padding(8)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
@@ -376,13 +374,13 @@ struct TaskDetailView: View {
                             jiraToken: KeychainHelper.load(key: "jira_api_token"),
                             colorScheme: colorScheme
                         )
-                        .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280), alignment: .topLeading)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
                         .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
                     } else {
                         Text(task.descriptionText ?? "Sin descripción")
                             .font(.body)
                             .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
                             .padding(8)
                             .background(colorScheme == .dark ? AnyShapeStyle(.regularMaterial.opacity(0.5)) : AnyShapeStyle(Color.clear), in: RoundedRectangle(cornerRadius: 8))
 
@@ -479,7 +477,7 @@ struct TaskDetailView: View {
         isAssigningToMe = false
     }
 
-    private var subtasksSection: some View {
+    private func subtasksSection() -> some View {
         VStack(alignment: .leading, spacing: 8) {
             let subsRaw = taskStore.subtasks(for: task)
             let subsFiltered = subsRaw.filter { !taskStore.excludedSubtaskStatuses.contains($0.status) }
@@ -579,7 +577,7 @@ struct TaskDetailView: View {
                     }
                 }
             } else {
-                List {
+                VStack(spacing: 6) {
                     ForEach(subs) { sub in
                         Button {
                             onSelectSubtask?(sub)
@@ -614,10 +612,7 @@ struct TaskDetailView: View {
                         .buttonStyle(.plain)
                         .padding(8)
                         .liquidGlassSubtaskCard()
-                        .listRowInsets(EdgeInsets(top: 3, leading: 0, bottom: 3, trailing: 0))
-                        .listRowBackground(Color.clear)
-                        .listRowSeparator(.hidden)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        .contextMenu {
                             Button(role: .destructive) {
                                 Task {
                                     await taskStore.deleteSubtask(sub)
@@ -628,9 +623,6 @@ struct TaskDetailView: View {
                         }
                     }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: CGFloat(max(subs.count, 1)) * 44)
             }
         }
         .task(id: task.taskId) {
