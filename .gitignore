@@ -18,6 +18,9 @@ xcuserdata/
 .build/
 .swiftpm/
 
+# Build para compartir
+dist/
+
 # macOS
 .DS_Store
 *.swp
