@@ -329,14 +329,22 @@ final class TaskStore: ObservableObject {
             errorMessage = msg
             return
         }
+        let parentExternalId = subtask.parentExternalId
+        let externalId = subtask.externalId
+        // UI optimista: eliminar localmente primero
+        modelContext.delete(subtask)
+        try? modelContext.save()
+        await loadTasks()
+        // Luego borrar en el proveedor; si falla, re-sincronizar
         do {
-            guard try await provider.deleteIssue(externalId: subtask.externalId) else { return }
-            modelContext.delete(subtask)
-            try? modelContext.save()
-            await loadTasks()
+            guard try await provider.deleteIssue(externalId: externalId) else { return }
         } catch {
-            AppLog.error(error.localizedDescription, context: "deleteSubtask(\(subtask.externalId))")
+            AppLog.error(error.localizedDescription, context: "deleteSubtask(\(externalId))")
             errorMessage = error.localizedDescription
+            if let parentId = parentExternalId,
+               let parent = tasks.first(where: { $0.externalId == parentId }) {
+                _ = await fetchSubtasks(for: parent)
+            }
         }
     }
 }
