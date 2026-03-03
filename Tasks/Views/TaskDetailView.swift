@@ -14,6 +14,9 @@ enum SubtaskSortOrder: String, CaseIterable {
 struct TaskDetailView: View {
     let task: TaskItem
     @ObservedObject var taskStore: TaskStore
+    /// Callback para navegar a una subtarea al hacer clic en ella.
+    var onSelectSubtask: ((TaskItem) -> Void)?
+
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var subtaskSortOrder: SubtaskSortOrder = .externalIdAsc
@@ -36,9 +39,10 @@ struct TaskDetailView: View {
     @State private var isCreatingSubtask = false
     @FocusState private var isTitleFocused: Bool
 
-    init(task: TaskItem, taskStore: TaskStore) {
+    init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil) {
         self.task = task
         self.taskStore = taskStore
+        self.onSelectSubtask = onSelectSubtask
         _urgency = State(initialValue: task.urgency ?? 1)
         _impact = State(initialValue: task.impact ?? 1)
         _effort = State(initialValue: task.effort ?? 1)
@@ -466,26 +470,35 @@ struct TaskDetailView: View {
             } else {
                 List {
                     ForEach(subs) { sub in
-                        HStack(spacing: 8) {
-                            Text(sub.externalId)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundStyle(.secondary)
-                                .frame(width: 60, alignment: .leading)
-                            Text(sub.title)
-                                .font(.body)
-                                .lineLimit(1)
-                            Spacer()
-                            Text(sub.status)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let url = sub.url {
-                                Link(destination: url) {
-                                    Image(systemName: "arrow.up.right.square")
-                                        .font(.caption)
+                        Button {
+                            onSelectSubtask?(sub)
+                        } label: {
+                            HStack(spacing: 8) {
+                                Text(sub.externalId)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 60, alignment: .leading)
+                                Text(sub.title)
+                                    .font(.body)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(sub.status)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if let url = sub.url {
+                                    Link(destination: url) {
+                                        Image(systemName: "arrow.up.right.square")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
                             }
                         }
+                        .buttonStyle(.plain)
                         .padding(8)
                         .liquidGlassSubtaskCard()
                         .listRowInsets(EdgeInsets(top: 3, leading: 0, bottom: 3, trailing: 0))
