@@ -322,6 +322,21 @@ final class TaskStore: ObservableObject {
         tasks.filter { $0.parentExternalId == task.externalId }
     }
 
+    /// Asigna la tarea al usuario actual en Jira. Solo soportado por JiraProvider.
+    func assignToMe(_ task: TaskItem) async {
+        guard let provider = provider as? JiraProvider else {
+            errorMessage = "Asignar a mí solo está disponible con Jira."
+            return
+        }
+        do {
+            try await provider.assignToMe(issueKey: task.externalId)
+            await refreshTask(task)
+        } catch {
+            AppLog.error(error.localizedDescription, context: "assignToMe(\(task.externalId))")
+            errorMessage = error.localizedDescription
+        }
+    }
+
     func deleteSubtask(_ subtask: TaskItem) async {
         guard let provider else {
             let msg = "No hay proveedor configurado. Configura Jira en Ajustes."

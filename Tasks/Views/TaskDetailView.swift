@@ -16,6 +16,8 @@ struct TaskDetailView: View {
     @ObservedObject var taskStore: TaskStore
     /// Callback para navegar a una subtarea al hacer clic en ella.
     var onSelectSubtask: ((TaskItem) -> Void)?
+    /// Callback para volver a la tarea padre (cuando se está viendo una subtarea).
+    var onSelectParent: ((TaskItem) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -37,12 +39,14 @@ struct TaskDetailView: View {
     @State private var newSubtaskTitle = ""
     @State private var newSubtaskDescription = ""
     @State private var isCreatingSubtask = false
+    @State private var isAssigningToMe = false
     @FocusState private var isTitleFocused: Bool
 
-    init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil) {
+    init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
         self.task = task
         self.taskStore = taskStore
         self.onSelectSubtask = onSelectSubtask
+        self.onSelectParent = onSelectParent
         _urgency = State(initialValue: task.urgency ?? 1)
         _impact = State(initialValue: task.impact ?? 1)
         _effort = State(initialValue: task.effort ?? 1)
@@ -134,6 +138,16 @@ struct TaskDetailView: View {
 
     private func headerSection(availableHeight: CGFloat = 600) -> some View {
         VStack(alignment: .leading, spacing: 4) {
+            if task.parentExternalId != nil, let onSelectParent, let parent = taskStore.tasks.first(where: { $0.externalId == task.parentExternalId }) {
+                Button {
+                    onSelectParent(parent)
+                } label: {
+                    Label("Volver a \(parent.externalId)", systemImage: "chevron.left")
+                        .font(.subheadline)
+                }
+                .buttonStyle(.borderless)
+                .padding(.bottom, 4)
+            }
             HStack(spacing: 8) {
                 Text(task.externalId)
                     .font(.headline)
@@ -244,6 +258,23 @@ struct TaskDetailView: View {
                     Text(assignee)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                }
+
+                if task.providerId == JiraProvider.providerId {
+                    Button {
+                        Task { await assignToMe() }
+                    } label: {
+                        if isAssigningToMe {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Label("Asignar a mí", systemImage: "person.badge.plus")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isAssigningToMe)
                 }
 
                 Spacer()
@@ -419,6 +450,12 @@ struct TaskDetailView: View {
         }
     }
 
+    private func assignToMe() async {
+        isAssigningToMe = true
+        await taskStore.assignToMe(task)
+        isAssigningToMe = false
+    }
+
     private var subtasksSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             let subsRaw = taskStore.subtasks(for: task)
@@ -464,9 +501,22 @@ struct TaskDetailView: View {
                 }
             }
             if subs.isEmpty && !isLoadingSubtasks {
-                Text("Sin subtareas")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Sin subtareas")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    if task.parentExternalId == nil {
+                        Button {
+                            newSubtaskTitle = ""
+                            newSubtaskDescription = ""
+                            showingAddSubtask = true
+                        } label: {
+                            Label("Agregar subtarea", systemImage: "plus.circle.fill")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
             } else {
                 List {
                     ForEach(subs) { sub in

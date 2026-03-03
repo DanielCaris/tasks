@@ -23,9 +23,7 @@ struct MainView: View {
             .navigationSplitViewColumnWidth(min: 260, ideal: 300)
         } detail: {
             if let task = selectedTask {
-                TaskDetailView(task: task, taskStore: taskStore) { subtask in
-                    selectedTask = subtask
-                }
+                TaskDetailView(task: task, taskStore: taskStore, onSelectSubtask: { selectedTask = $0 }, onSelectParent: { selectedTask = $0 })
                 .id(task.taskId)
             } else {
                 ContentUnavailableView(
