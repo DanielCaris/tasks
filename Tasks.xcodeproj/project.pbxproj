@@ -125,18 +125,6 @@
 			path = Providers;
 			sourceTree = "<group>";
 		};
-		TASK309 /* Utils */ = {
-			isa = PBXGroup;
-			children = (
-				TASK126 /* AppLog.swift */,
-				TASK119 /* ADFToHTML.swift */,
-				TASK123 /* MarkdownToADF.swift */,
-				TASK124 /* ADFToMarkdown.swift */,
-				TASK125 /* HTMLToMarkdown.swift */,
-			);
-			path = Utils;
-			sourceTree = "<group>";
-		};
 		TASK305 /* Stores */ = {
 			isa = PBXGroup;
 			children = (
@@ -160,6 +148,14 @@
 			path = Views;
 			sourceTree = "<group>";
 		};
+		TASK307 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				TASK103 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
 		TASK308 /* Components */ = {
 			isa = PBXGroup;
 			children = (
@@ -172,12 +168,16 @@
 			path = Components;
 			sourceTree = "<group>";
 		};
-		TASK307 /* Preview Content */ = {
+		TASK309 /* Utils */ = {
 			isa = PBXGroup;
 			children = (
-				TASK103 /* Preview Assets.xcassets */,
+				TASK126 /* AppLog.swift */,
+				TASK119 /* ADFToHTML.swift */,
+				TASK123 /* MarkdownToADF.swift */,
+				TASK124 /* ADFToMarkdown.swift */,
+				TASK125 /* HTMLToMarkdown.swift */,
 			);
-			path = "Preview Content";
+			path = Utils;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -318,8 +318,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Tasks/Preview Content\"";
+				DEVELOPMENT_TEAM = 3GGB9J5232;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -343,8 +345,10 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Tasks/Preview Content\"";
+				DEVELOPMENT_TEAM = 3GGB9J5232;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
