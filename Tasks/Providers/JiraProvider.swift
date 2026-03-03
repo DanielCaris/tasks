@@ -636,7 +636,7 @@ final class JiraProvider: IssueProviderProtocol {
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "100"),
-            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment")
+            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment,parent")
         ]
         return components?.url
     }
@@ -762,6 +762,7 @@ final class JiraProvider: IssueProviderProtocol {
             let mediaIdToSignedURL = await buildMediaIdToSignedURLMap(attachments: attachments)
             let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
             let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
+            let resolvedParent = parentKey ?? issue.fields.parent?.key
             results.append(IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
@@ -770,7 +771,7 @@ final class JiraProvider: IssueProviderProtocol {
                 description: descriptionText?.isEmpty == false ? descriptionText : nil,
                 descriptionHTML: descriptionHTML?.isEmpty == false ? descriptionHTML : nil,
                 descriptionADFJSON: descriptionADFJSON,
-                parentExternalId: parentKey,
+                parentExternalId: resolvedParent,
                 url: url,
                 priority: issue.fields.priority?.name,
                 createdAt: createdAt,
@@ -805,6 +806,11 @@ private struct JiraIssueFields: Decodable {
     let created: Date?
     let updated: Date?
     let attachment: [JiraAttachment]?
+    let parent: JiraParent?
+}
+
+private struct JiraParent: Decodable {
+    let key: String
 }
 
 private struct JiraAttachment: Decodable {

@@ -9,28 +9,9 @@ struct MainView: View {
     @State private var showingSettings = false
     @State private var showingCreateTask = false
 
-    /// Sidebar lee directo de SwiftData: evita que mutaciones de taskStore.tasks
-    /// (fetchSubtasks, sortByPriority, etc.) hagan desaparecer items.
-    @Query(filter: #Predicate<TaskItem> { $0.parentExternalId == nil }, sort: \TaskItem.taskId)
-    private var parentTasksFromDB: [TaskItem]
-
-    private var sidebarTasks: [TaskItem] {
-        let filtered = taskStore.selectedStatusFilters.isEmpty
-            ? parentTasksFromDB
-            : parentTasksFromDB.filter { taskStore.selectedStatusFilters.contains($0.status) }
-        return filtered.sorted { $0.priorityScore > $1.priorityScore }
-    }
-
-    /// Lista plana: padres + subtareas asignadas a mí, ordenada por prioridad (una subtask puede estar arriba del padre).
-    private var flatSidebarTasks: [TaskItem] {
-        let parents = sidebarTasks
-        let subs = taskStore.allSubtasksAssignedToMe()
-        return (parents + subs).sorted { $0.priorityScore > $1.priorityScore }
-    }
-
     private var selectedTask: TaskItem? {
         guard let id = selectedTaskId else { return nil }
-        return flatSidebarTasks.first { $0.taskId == id }
+        return taskStore.flatSidebarTasks.first { $0.taskId == id }
             ?? taskStore.tasks.first { $0.taskId == id }
     }
 
@@ -38,7 +19,7 @@ struct MainView: View {
         NavigationSplitView {
             List(selection: $selectedTaskId) {
                 Section("Tareas") {
-                    ForEach(flatSidebarTasks, id: \.taskId) { task in
+                    ForEach(taskStore.flatSidebarTasks, id: \.taskId) { task in
                         TaskRowView(task: task, taskStore: taskStore)
                             .tag(task.taskId)
                     }

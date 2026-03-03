@@ -24,6 +24,23 @@ final class TaskStore: ObservableObject {
         return parents.filter { selectedStatusFilters.contains($0.status) }
     }
 
+    /// Lista plana para sidebar: padres + subtareas asignadas a mí, ordenada por prioridad.
+    var flatSidebarTasks: [TaskItem] {
+        let parents = tasks.filter { $0.parentExternalId == nil }
+        let subs = tasks.filter { $0.parentExternalId != nil && isAssignedToMe($0) }
+        let statusFilter = selectedStatusFilters
+        let filteredParents = statusFilter.isEmpty ? parents : parents.filter { statusFilter.contains($0.status) }
+        let filteredSubs = statusFilter.isEmpty ? subs : subs.filter { statusFilter.contains($0.status) }
+        return (filteredParents + filteredSubs).sorted { $0.priorityScore > $1.priorityScore }
+    }
+
+    private func isAssignedToMe(_ task: TaskItem) -> Bool {
+        guard let assignee = task.assignee?.trimmingCharacters(in: .whitespaces),
+              let current = currentUserDisplayName?.trimmingCharacters(in: .whitespaces),
+              !assignee.isEmpty, !current.isEmpty else { return false }
+        return assignee.localizedCaseInsensitiveCompare(current) == .orderedSame
+    }
+
     /// Status únicos descubiertos en las tareas actuales.
     var knownStatuses: [String] {
         Array(Set(tasks.map(\.status))).sorted()
