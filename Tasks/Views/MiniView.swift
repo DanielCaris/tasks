@@ -24,6 +24,9 @@ struct MiniView: View {
                 List(topTasks) { task in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
+                            Circle()
+                                .fill(taskStore.statusColor(for: task.status))
+                                .frame(width: 8, height: 8)
                             Text(task.externalId)
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
