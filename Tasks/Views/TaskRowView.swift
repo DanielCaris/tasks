@@ -21,10 +21,15 @@ struct TaskRowView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(task.externalId)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(taskStore.statusColor(for: task.status))
+                            .frame(width: 8, height: 8)
+                        Text(task.externalId)
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundStyle(.secondary)
+                    }
 
                     Text(task.title)
                         .font(.body)
