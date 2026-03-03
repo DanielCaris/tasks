@@ -659,22 +659,9 @@ struct TaskDetailView: View {
                 }
             }
             if subs.isEmpty && !isLoadingSubtasks {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(subsRaw.isEmpty ? "Sin subtareas" : "Todas las subtareas están ocultas por el filtro")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    if task.parentExternalId == nil {
-                        Button {
-                            newSubtaskTitle = ""
-                            newSubtaskDescription = ""
-                            showingAddSubtask = true
-                        } label: {
-                            Label("Agregar subtarea", systemImage: "plus.circle.fill")
-                                .font(.subheadline)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
+                Text(subsRaw.isEmpty ? "Sin subtareas" : "Todas las subtareas están ocultas por el filtro")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             } else {
                 VStack(spacing: 6) {
                     ForEach(subs) { sub in
