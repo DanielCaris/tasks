@@ -19,9 +19,19 @@ struct MainView: View {
         NavigationSplitView {
             List(selection: $selectedTaskId) {
                 Section("Tareas") {
-                    ForEach(taskStore.flatSidebarTasks, id: \.taskId) { task in
-                        TaskRowView(task: task, taskStore: taskStore)
-                            .tag(task.taskId)
+                    if taskStore.providerId != nil && taskStore.currentUserDisplayName == nil {
+                        VStack {
+                            Spacer()
+                            ProgressView()
+                            Spacer()
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 120)
+                        .listRowBackground(Color.clear)
+                    } else {
+                        ForEach(taskStore.flatSidebarTasks, id: \.taskId) { task in
+                            TaskRowView(task: task, taskStore: taskStore)
+                                .tag(task.taskId)
+                        }
                     }
                 }
             }

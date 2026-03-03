@@ -49,4 +49,8 @@ enum KeychainHelper {
     static func loadCurrentUserDisplayName() -> String? {
         suite.string(forKey: prefix + "current_user_display_name")
     }
+
+    static func deleteCurrentUserDisplayName() {
+        suite.removeObject(forKey: prefix + "current_user_display_name")
+    }
 }

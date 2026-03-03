@@ -64,6 +64,13 @@ final class TaskStore: ObservableObject {
         self.provider = provider
     }
 
+    /// Elimina la caché del display name y fuerza una nueva carga.
+    func clearCurrentUserDisplayNameCache() {
+        KeychainHelper.deleteCurrentUserDisplayName()
+        currentUserDisplayName = nil
+        loadCurrentUserDisplayNameIfNeeded()
+    }
+
     /// Carga el display name del usuario actual (Jira). Usa caché si existe y refresca en background.
     func loadCurrentUserDisplayNameIfNeeded() {
         guard provider is JiraProvider else { return }

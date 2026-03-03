@@ -210,6 +210,11 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(testSuccess == true ? .green : .red)
                 }
+
+                Button("Limpiar caché de usuario") {
+                    taskStore.clearCurrentUserDisplayNameCache()
+                }
+                .buttonStyle(.bordered)
             }
         }
         .formStyle(.grouped)
