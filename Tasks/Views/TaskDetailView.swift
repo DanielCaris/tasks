@@ -216,7 +216,7 @@ struct TaskDetailView: View {
                         TextEditor(text: $editableDescription)
                             .font(.body)
                             .fontDesign(.monospaced)
-                            .frame(minHeight: 200)
+                            .frame(minHeight: 400, maxHeight: max(500, availableHeight - 280), alignment: .topLeading)
                             .scrollContentBackground(.hidden)
                             .padding(8)
                             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
