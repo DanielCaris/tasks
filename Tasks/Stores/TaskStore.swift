@@ -4,7 +4,7 @@ import SwiftData
 @MainActor
 final class TaskStore: ObservableObject {
     private let modelContext: ModelContext
-    private var sortTask: Task<Void, Never>?
+    private var pendingPriorityTasks: [String: Task<Void, Never>] = [:]
 
     @Published var tasks: [TaskItem] = []
     @Published var selectedStatusFilters: Set<String> = []
@@ -293,15 +293,20 @@ final class TaskStore: ObservableObject {
     }
 
     func updatePriority(task: TaskItem, urgency: Int?, impact: Int?, effort: Int?) {
-        task.urgency = urgency
-        task.impact = impact
-        task.effort = effort
-        try? modelContext.save()
+        let taskId = task.taskId
+        let u = urgency
+        let i = impact
+        let e = effort
 
-        sortTask?.cancel()
-        sortTask = Task {
-            try? await Task.sleep(for: .milliseconds(1200))
+        pendingPriorityTasks[taskId]?.cancel()
+        pendingPriorityTasks[taskId] = Task {
+            try? await Task.sleep(for: .milliseconds(1000))
             guard !Task.isCancelled else { return }
+            pendingPriorityTasks.removeValue(forKey: taskId)
+            task.urgency = u
+            task.impact = i
+            task.effort = e
+            try? modelContext.save()
             sortByPriority()
         }
     }
