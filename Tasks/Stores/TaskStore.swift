@@ -345,6 +345,22 @@ final class TaskStore: ObservableObject {
         tasks.filter { $0.parentExternalId == task.externalId }
     }
 
+    /// Subtareas asignadas al usuario actual y que cumplen los filtros de estado (para el sidebar).
+    func subtasksAssignedToMe(for task: TaskItem) -> [TaskItem] {
+        let subs = subtasks(for: task)
+        guard let current = currentUserDisplayName?.trimmingCharacters(in: .whitespaces),
+              !current.isEmpty else { return [] }
+        var result = subs.filter { sub in
+            guard let assignee = sub.assignee?.trimmingCharacters(in: .whitespaces),
+                  !assignee.isEmpty else { return false }
+            return assignee.localizedCaseInsensitiveCompare(current) == .orderedSame
+        }
+        if !selectedStatusFilters.isEmpty {
+            result = result.filter { selectedStatusFilters.contains($0.status) }
+        }
+        return result
+    }
+
     /// Asigna la tarea al usuario actual en Jira. Solo soportado por JiraProvider.
     func assignToMe(_ task: TaskItem) async {
         guard let provider = provider as? JiraProvider else {

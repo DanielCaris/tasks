@@ -42,9 +42,9 @@ struct MainView: View {
                         TaskRowView(task: parent, taskStore: taskStore)
                             .tag(parent.taskId)
 
-                        // Mostrar subtareas del parent cuando está activo (seleccionado o padre de la subtask vista).
+                        // Mostrar solo subtareas asignadas a mí cuando el parent está activo.
                         if activeParentForSubtasks?.taskId == parent.taskId {
-                            ForEach(taskStore.subtasks(for: parent), id: \.taskId) { sub in
+                            ForEach(taskStore.subtasksAssignedToMe(for: parent), id: \.taskId) { sub in
                                 HStack(spacing: 6) {
                                     Image(systemName: "arrow.turn.down.right")
                                         .font(.caption2)
