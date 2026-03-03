@@ -1,11 +1,22 @@
 import SwiftUI
 import SwiftData
 
+/// Criterios de ordenación para subtareas.
+enum SubtaskSortOrder: String, CaseIterable {
+    case externalIdAsc = "Por ID (A→Z)"
+    case externalIdDesc = "Por ID (Z→A)"
+    case titleAsc = "Por título (A→Z)"
+    case titleDesc = "Por título (Z→A)"
+    case statusAsc = "Por estado (A→Z)"
+    case statusDesc = "Por estado (Z→A)"
+}
+
 struct TaskDetailView: View {
     let task: TaskItem
     @ObservedObject var taskStore: TaskStore
     @Environment(\.colorScheme) private var colorScheme
 
+    @State private var subtaskSortOrder: SubtaskSortOrder = .externalIdAsc
     @State private var urgency: Int
     @State private var impact: Int
     @State private var effort: Int
@@ -406,6 +417,8 @@ struct TaskDetailView: View {
 
     private var subtasksSection: some View {
         VStack(alignment: .leading, spacing: 8) {
+            let subsRaw = taskStore.subtasks(for: task)
+            let subs = sortedSubtasks(subsRaw)
             HStack {
                 Text("Subtareas")
                     .font(.headline)
@@ -414,6 +427,26 @@ struct TaskDetailView: View {
                         .controlSize(.small)
                 }
                 Spacer()
+                if !subsRaw.isEmpty {
+                    Menu {
+                        ForEach(SubtaskSortOrder.allCases, id: \.self) { order in
+                            Button {
+                                subtaskSortOrder = order
+                            } label: {
+                                HStack {
+                                    Text(order.rawValue)
+                                    if subtaskSortOrder == order {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        Label("Ordenar", systemImage: "arrow.up.arrow.down.circle")
+                            .font(.subheadline)
+                    }
+                    .menuStyle(.borderlessButton)
+                }
                 if task.parentExternalId == nil {
                     Button {
                         newSubtaskTitle = ""
@@ -426,7 +459,6 @@ struct TaskDetailView: View {
                     .buttonStyle(.borderless)
                 }
             }
-            let subs = taskStore.subtasks(for: task)
             if subs.isEmpty && !isLoadingSubtasks {
                 Text("Sin subtareas")
                     .font(.subheadline)
@@ -480,6 +512,23 @@ struct TaskDetailView: View {
             isLoadingSubtasks = true
             _ = await taskStore.fetchSubtasks(for: task)
             isLoadingSubtasks = false
+        }
+    }
+
+    private func sortedSubtasks(_ items: [TaskItem]) -> [TaskItem] {
+        switch subtaskSortOrder {
+        case .externalIdAsc:
+            return items.sorted { $0.externalId.localizedCompare($1.externalId) == .orderedAscending }
+        case .externalIdDesc:
+            return items.sorted { $0.externalId.localizedCompare($1.externalId) == .orderedDescending }
+        case .titleAsc:
+            return items.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
+        case .titleDesc:
+            return items.sorted { $0.title.localizedCompare($1.title) == .orderedDescending }
+        case .statusAsc:
+            return items.sorted { $0.status.localizedCompare($1.status) == .orderedAscending }
+        case .statusDesc:
+            return items.sorted { $0.status.localizedCompare($1.status) == .orderedDescending }
         }
     }
 

@@ -289,7 +289,7 @@ final class TaskStore: ObservableObject {
 
         sortTask?.cancel()
         sortTask = Task {
-            try? await Task.sleep(for: .milliseconds(600))
+            try? await Task.sleep(for: .milliseconds(1200))
             guard !Task.isCancelled else { return }
             sortByPriority()
         }
