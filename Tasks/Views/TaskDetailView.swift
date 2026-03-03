@@ -19,6 +19,10 @@ struct TaskDetailView: View {
     @State private var isTransitioning = false
     @State private var isLoadingSubtasks = false
     @State private var isRefreshingTask = false
+    @State private var showingAddSubtask = false
+    @State private var newSubtaskTitle = ""
+    @State private var newSubtaskDescription = ""
+    @State private var isCreatingSubtask = false
     @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore) {
@@ -54,6 +58,63 @@ struct TaskDetailView: View {
             }
         }
         .background(.thinMaterial.opacity(0.5))
+        .sheet(isPresented: $showingAddSubtask) {
+            addSubtaskSheet
+        }
+    }
+
+    private var addSubtaskSheet: some View {
+        Form {
+            Section {
+                TextField("Título de la subtarea", text: $newSubtaskTitle, prompt: Text("Resumen de la subtarea"))
+                    .textContentType(.none)
+            } header: {
+                Text("Nueva subtarea")
+            } footer: {
+                Text("La subtarea se creará en Jira bajo \(task.externalId).")
+            }
+
+            Section("Descripción") {
+                TextEditor(text: $newSubtaskDescription)
+                    .font(.body)
+                    .fontDesign(.monospaced)
+                    .frame(minHeight: 60)
+            }
+
+            Section {
+                Button {
+                    createSubtask()
+                } label: {
+                    Label {
+                        Text("Crear subtarea")
+                    } icon: {
+                        if isCreatingSubtask {
+                            ProgressView()
+                                .controlSize(.small)
+                        } else {
+                            Image(systemName: "plus.circle.fill")
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .disabled(isCreatingSubtask || newSubtaskTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 400, height: 320)
+    }
+
+    private func createSubtask() {
+        let title = newSubtaskTitle.trimmingCharacters(in: .whitespaces)
+        let description = newSubtaskDescription.trimmingCharacters(in: .whitespaces)
+        guard !title.isEmpty else { return }
+        isCreatingSubtask = true
+        Task {
+            if await taskStore.createSubtask(for: task, title: title, description: description.isEmpty ? nil : description) != nil {
+                showingAddSubtask = false
+            }
+            isCreatingSubtask = false
+        }
     }
 
     private func headerSection(availableHeight: CGFloat = 600) -> some View {
@@ -351,6 +412,18 @@ struct TaskDetailView: View {
                 if isLoadingSubtasks {
                     ProgressView()
                         .controlSize(.small)
+                }
+                Spacer()
+                if task.parentExternalId == nil {
+                    Button {
+                        newSubtaskTitle = ""
+                        newSubtaskDescription = ""
+                        showingAddSubtask = true
+                    } label: {
+                        Label("Agregar subtarea", systemImage: "plus.circle.fill")
+                            .font(.subheadline)
+                    }
+                    .buttonStyle(.borderless)
                 }
             }
             let subs = taskStore.subtasks(for: task)

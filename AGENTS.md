@@ -14,7 +14,7 @@
 After modifying Swift code or project resources, automatically run:
 
 ```bash
-make run
+make run-attached
 ```
 
-This command builds the project and launches the Tasks app to verify that changes work correctly. Use `make build` alone if you only need to compile without launching.
+This command builds the project and launches the Tasks app in the terminal with logs visible (useful for debugging errors). Use `make build` alone if you only need to compile without launching.

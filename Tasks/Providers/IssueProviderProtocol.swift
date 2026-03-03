@@ -17,6 +17,8 @@ protocol IssueProviderProtocol {
     func updateIssue(externalId: String, title: String?, description: Any?) async throws -> [String: Any]?
     /// Crea un nuevo issue. Retorna el IssueDTO del issue creado.
     func createIssue(projectKey: String, title: String, description: String?) async throws -> IssueDTO
+    /// Crea una subtarea bajo un issue padre. Retorna el IssueDTO de la subtarea creada. nil si no soportado.
+    func createSubtask(parentExternalId: String, title: String, description: String?) async throws -> IssueDTO?
     /// Lista proyectos disponibles para crear issues.
     func fetchProjects() async throws -> [ProjectOption]
     /// Transiciones de status disponibles para un issue. Retorna vacío si no se soporta.
@@ -37,6 +39,10 @@ extension IssueProviderProtocol {
 
     func createIssue(projectKey: String, title: String, description: String?) async throws -> IssueDTO {
         fatalError("Este proveedor no soporta crear issues")
+    }
+
+    func createSubtask(parentExternalId: String, title: String, description: String?) async throws -> IssueDTO? {
+        nil
     }
 
     func fetchProjects() async throws -> [ProjectOption] {

@@ -47,7 +47,9 @@ final class TaskStore: ObservableObject {
 
     func fetchFromProvider() async {
         guard let provider else {
-            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            let msg = "No hay proveedor configurado. Configura Jira en Ajustes."
+            AppLog.error(msg, context: "fetchFromProvider")
+            errorMessage = msg
             return
         }
 
@@ -60,6 +62,7 @@ final class TaskStore: ObservableObject {
             await loadTasks()
             transitionsCache.removeAll()
         } catch {
+            AppLog.error(error.localizedDescription, context: "fetchFromProvider")
             errorMessage = error.localizedDescription
         }
 
@@ -69,7 +72,9 @@ final class TaskStore: ObservableObject {
     /// Recarga solo la tarea indicada desde el proveedor (sin actualizar el resto).
     func refreshTask(_ task: TaskItem) async {
         guard let provider else {
-            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            let msg = "No hay proveedor configurado. Configura Jira en Ajustes."
+            AppLog.error(msg, context: "refreshTask")
+            errorMessage = msg
             return
         }
         do {
@@ -78,6 +83,7 @@ final class TaskStore: ObservableObject {
             try? modelContext.save()
             await loadTasks()
         } catch {
+            AppLog.error(error.localizedDescription, context: "refreshTask(\(task.externalId))")
             errorMessage = error.localizedDescription
         }
     }
@@ -133,8 +139,9 @@ final class TaskStore: ObservableObject {
         errorMessage = nil
         print("[Tasks] updateTaskInProvider: \(task.externalId), title=\(title != nil), desc=\(description != nil)")
         guard let provider else {
-            print("[Tasks] updateTaskInProvider: ERROR - no hay proveedor")
-            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            let msg = "No hay proveedor configurado. Configura Jira en Ajustes."
+            AppLog.error(msg, context: "updateTaskInProvider")
+            errorMessage = msg
             return
         }
         do {
@@ -172,7 +179,7 @@ final class TaskStore: ObservableObject {
             try? modelContext.save()
             print("[Tasks] updateTaskInProvider: guardado completado")
         } catch {
-            print("[Tasks] updateTaskInProvider: ERROR - \(error.localizedDescription)")
+            AppLog.error(error.localizedDescription, context: "updateTaskInProvider(\(task.externalId))")
             errorMessage = error.localizedDescription
         }
     }
@@ -188,6 +195,7 @@ final class TaskStore: ObservableObject {
             transitionsCache[key] = transitions
             return transitions
         } catch {
+            AppLog.error(error.localizedDescription, context: "getTransitions(\(task.externalId))")
             errorMessage = error.localizedDescription
             return []
         }
@@ -199,7 +207,9 @@ final class TaskStore: ObservableObject {
 
     func transitionTask(_ task: TaskItem, transitionId: String, newStatus: String) async {
         guard let provider else {
-            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            let msg = "No hay proveedor configurado. Configura Jira en Ajustes."
+            AppLog.error(msg, context: "transitionTask")
+            errorMessage = msg
             return
         }
         do {
@@ -209,6 +219,7 @@ final class TaskStore: ObservableObject {
             invalidateTransitionsCache(for: task)
             try? modelContext.save()
         } catch {
+            AppLog.error(error.localizedDescription, context: "transitionTask(\(task.externalId))")
             errorMessage = error.localizedDescription
         }
     }
@@ -218,6 +229,7 @@ final class TaskStore: ObservableObject {
         do {
             return try await provider.fetchProjects()
         } catch {
+            AppLog.error(error.localizedDescription, context: "fetchProjects")
             errorMessage = error.localizedDescription
             return []
         }
@@ -225,7 +237,9 @@ final class TaskStore: ObservableObject {
 
     func createTaskInProvider(projectKey: String, title: String, description: String?) async -> TaskItem? {
         guard let provider else {
-            errorMessage = "No hay proveedor configurado. Configura Jira en Ajustes."
+            let msg = "No hay proveedor configurado. Configura Jira en Ajustes."
+            AppLog.error(msg, context: "createTaskInProvider")
+            errorMessage = msg
             return nil
         }
         do {
@@ -235,6 +249,33 @@ final class TaskStore: ObservableObject {
             await loadTasks()
             return tasks.first { $0.externalId == dto.externalId }
         } catch {
+            AppLog.error(error.localizedDescription, context: "createTaskInProvider")
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func createSubtask(for parentTask: TaskItem, title: String, description: String?) async -> TaskItem? {
+        guard let provider else {
+            let msg = "No hay proveedor configurado. Configura Jira en Ajustes."
+            AppLog.error(msg, context: "createSubtask")
+            errorMessage = msg
+            return nil
+        }
+        do {
+            guard let dto = try await provider.createSubtask(parentExternalId: parentTask.externalId, title: title, description: description) else {
+                let msg = "Este proveedor no soporta crear subtareas."
+                AppLog.error(msg, context: "createSubtask")
+                errorMessage = msg
+                return nil
+            }
+            let providerId = type(of: provider).providerId
+            await mergeWithLocalData(dtos: [dto], providerId: providerId)
+            try? modelContext.save()
+            await loadTasks()
+            return tasks.first { $0.externalId == dto.externalId }
+        } catch {
+            AppLog.error(error.localizedDescription, context: "createSubtask(parent:\(parentTask.externalId))")
             errorMessage = error.localizedDescription
             return nil
         }
@@ -271,6 +312,7 @@ final class TaskStore: ObservableObject {
             await loadTasks()
             return tasks.filter { $0.parentExternalId == task.externalId }
         } catch {
+            AppLog.error(error.localizedDescription, context: "fetchSubtasks(\(task.externalId))")
             errorMessage = error.localizedDescription
             return []
         }

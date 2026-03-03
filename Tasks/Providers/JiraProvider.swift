@@ -306,6 +306,70 @@ final class JiraProvider: IssueProviderProtocol {
         return try await fetchIssueInternal(issueKey: createResponse.key)
     }
 
+    func createSubtask(parentExternalId: String, title: String, description: String?) async throws -> IssueDTO? {
+        let projectKey = parentExternalId.split(separator: "-").first.map(String.init) ?? ""
+        guard !projectKey.isEmpty else { throw JiraError.apiError(statusCode: 400, message: "Clave de proyecto inválida") }
+
+        let subtaskIssuetype = try await fetchSubtaskIssueType(projectKey: projectKey.uppercased())
+
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue") else {
+            throw JiraError.invalidURL
+        }
+
+        var fields: [String: Any] = [
+            "project": ["key": projectKey.uppercased()],
+            "parent": ["key": parentExternalId],
+            "summary": title,
+            "issuetype": subtaskIssuetype
+        ]
+        if let description, !description.isEmpty {
+            fields["description"] = MarkdownToADF.convert(description)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["fields": fields])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+
+        struct CreateSubtaskResponse: Decodable {
+            let key: String
+        }
+        let createResponse = try JSONDecoder().decode(CreateSubtaskResponse.self, from: data)
+        let dto = try await fetchIssueInternal(issueKey: createResponse.key)
+        return IssueDTO(
+            externalId: dto.externalId,
+            title: dto.title,
+            status: dto.status,
+            assignee: dto.assignee,
+            description: dto.description,
+            descriptionHTML: dto.descriptionHTML,
+            descriptionADFJSON: dto.descriptionADFJSON,
+            parentExternalId: parentExternalId,
+            url: dto.url,
+            priority: dto.priority,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+
     func fetchIssue(externalId: String) async throws -> IssueDTO? {
         try await fetchIssueInternal(issueKey: externalId)
     }
@@ -469,6 +533,57 @@ final class JiraProvider: IssueProviderProtocol {
             URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment")
         ]
         return components?.url
+    }
+
+    /// Obtiene el issuetype de subtarea para el proyecto (id o name) desde createmeta.
+    /// El nombre varía entre instancias: "Sub-task", "Subtask", etc.
+    private func fetchSubtaskIssueType(projectKey: String) async throws -> [String: Any] {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/createmeta?projectKeys=\(projectKey)&expand=projects.issuetypes") else {
+            throw JiraError.invalidURL
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let projects = json["projects"] as? [[String: Any]] else {
+            AppLog.warning("createmeta: formato de respuesta inesperado", context: "fetchSubtaskIssueType")
+            return ["name": "Sub-task"]
+        }
+
+        for project in projects {
+            guard let issuetypes = project["issuetypes"] as? [[String: Any]] else { continue }
+            for it in issuetypes {
+                let subtask = (it["subtask"] as? Bool) ?? false
+                guard subtask else { continue }
+                if let id = it["id"] as? String {
+                    return ["id": id]
+                }
+                if let id = it["id"] as? Int {
+                    return ["id": String(id)]
+                }
+                if let name = it["name"] as? String {
+                    return ["name": name]
+                }
+            }
+        }
+
+        AppLog.warning("createmeta: no se encontró issuetype subtask, usando 'Sub-task'", context: "fetchSubtaskIssueType")
+        return ["name": "Sub-task"]
     }
 
     private func buildSubtasksURL(parentKey: String) -> URL? {
