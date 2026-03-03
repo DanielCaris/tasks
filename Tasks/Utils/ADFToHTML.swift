@@ -56,7 +56,7 @@ enum ADFToHTML {
 
         case "taskList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<ul style='margin: 0.25em 0; padding-left: 1.5em; list-style: none;'>\(items)</ul>"
+            return "<ul style='margin: 0.25em 0; padding-left: 1em; list-style: none;'>\(items)</ul>"
 
         case "taskItem":
             let state = (attrs["state"] as? String) ?? "TODO"
@@ -86,11 +86,11 @@ enum ADFToHTML {
 
         case "bulletList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<ul style='margin: 0.25em 0; padding-left: 1.5em;'>\(items)</ul>"
+            return "<ul style='margin: 0.25em 0; padding-left: 1em;'>\(items)</ul>"
 
         case "orderedList":
             let items = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()
-            return "<ol style='margin: 0.25em 0; padding-left: 1.5em;'>\(items)</ol>"
+            return "<ol style='margin: 0.25em 0; padding-left: 1em;'>\(items)</ol>"
 
         case "listItem":
             let inner = content.compactMap { nodeToHTML($0, baseURL: baseURL, attachmentMap: attachmentMap, fallback: fallback, mediaIdToSignedURL: mediaIdToSignedURL, interactiveCheckboxes: interactiveCheckboxes, taskIndex: &taskIndex) }.joined()

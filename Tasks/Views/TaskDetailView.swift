@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 /// Criterios de ordenación para subtareas.
 enum SubtaskSortOrder: String, CaseIterable {
@@ -48,7 +49,7 @@ struct TaskDetailView: View {
     @State private var isAssigningToMe = false
     @State private var optimisticDescriptionADF: String? = nil
     @State private var debouncedSaveTask: Task<Void, Never>? = nil
-    @State private var isHoveringDescription = false
+    @State private var descriptionEditMonitor: Any? = nil
     @FocusState private var isTitleFocused: Bool
 
     init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
@@ -66,8 +67,24 @@ struct TaskDetailView: View {
     var body: some View {
         GeometryReader { geo in
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 0) {
                     headerSection(availableHeight: geo.size.height)
+
+                    Group {
+                        if isEditingDescription {
+                            Color.clear
+                                .frame(height: 24)
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    if hasEdits { saveToJira() }
+                                    isEditingDescription = false
+                                    removeDescriptionBlurMonitor()
+                                }
+                        } else {
+                            Spacer().frame(height: 24)
+                        }
+                    }
 
                     if task.providerId == JiraProvider.providerId {
                         subtasksSection()
@@ -88,6 +105,14 @@ struct TaskDetailView: View {
         .background(.thinMaterial.opacity(0.5))
         .sheet(isPresented: $showingAddSubtask) {
             addSubtaskSheet
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .descriptionBlurSave)) { _ in
+            guard isEditingDescription else { return }
+            if hasEdits {
+                saveToJira()
+            }
+            isEditingDescription = false
+            removeDescriptionBlurMonitor()
         }
     }
 
@@ -370,34 +395,6 @@ struct TaskDetailView: View {
                 }
             }
             .frame(minHeight: descHeight)
-
-            if isEditingDescription {
-                HStack(spacing: 8) {
-                    Button {
-                        saveToJira()
-                    } label: {
-                        Label {
-                            Text("Guardar en Jira")
-                        } icon: {
-                            if isSavingToJira {
-                                ProgressView()
-                                    .controlSize(.small)
-                            } else {
-                                Image(systemName: "arrow.up.circle.fill")
-                            }
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isSavingToJira || !hasEdits)
-
-                    Button("Cancelar") {
-                        isEditingDescription = false
-                        editableDescription = Self.initialDescriptionMarkdown(for: task)
-                    }
-                    .buttonStyle(.bordered)
-                }
-                .frame(height: 28)
-            }
         }
         .padding(.top, 16)
     }
@@ -405,8 +402,8 @@ struct TaskDetailView: View {
     @ViewBuilder
     private func descriptionViewWithHover<Content: View>(height: CGFloat, @ViewBuilder content: () -> Content) -> some View {
         let bgColor: some ShapeStyle = colorScheme == .dark
-            ? AnyShapeStyle(.regularMaterial.opacity(isHoveringDescription ? 0.65 : 0.5))
-            : AnyShapeStyle(isHoveringDescription ? Color.gray.opacity(0.12) : Color.clear)
+            ? AnyShapeStyle(.regularMaterial.opacity(0.5))
+            : AnyShapeStyle(Color.clear)
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 8)
                 .fill(bgColor)
@@ -414,7 +411,6 @@ struct TaskDetailView: View {
         }
         .frame(maxWidth: .infinity, minHeight: height, maxHeight: height)
         .contentShape(Rectangle())
-        .onHover { isHoveringDescription = $0 }
         .onTapGesture(count: 2) {
             editableDescription = Self.initialDescriptionMarkdown(for: task)
             isEditingDescription = true
@@ -433,6 +429,63 @@ struct TaskDetailView: View {
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
         }
         .frame(height: height)
+        .onAppear {
+            installDescriptionBlurMonitor()
+        }
+        .onDisappear {
+            removeDescriptionBlurMonitor()
+        }
+    }
+
+    private func installDescriptionBlurMonitor() {
+        guard descriptionEditMonitor == nil else { return }
+        descriptionEditMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { event in
+            guard let window = event.window ?? NSApp.keyWindow,
+                  let contentView = window.contentView else { return event }
+            let location = contentView.convert(event.locationInWindow, from: nil)
+            let clickedView = contentView.hitTest(location)
+            // Solo no dismissar si el clic está DENTRO de los bounds de un NSTextView
+            if let view = clickedView, isClickInsideTextView(view, locationInContentView: location, contentView: contentView) {
+                return event
+            }
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .descriptionBlurSave, object: nil)
+            }
+            return event
+        }
+    }
+
+    private func isClickInsideTextView(_ clickedView: NSView, locationInContentView: NSPoint, contentView: NSView) -> Bool {
+        // Caso 1: el clic fue en el NSTextView o en un subvista suyo
+        var v: NSView? = clickedView
+        while let current = v {
+            if let textView = current as? NSTextView {
+                let locInTextView = textView.convert(locationInContentView, from: contentView)
+                return textView.bounds.contains(locInTextView)
+            }
+            v = current.superview
+        }
+        // Caso 2: el clic fue en un contenedor del editor (ej. NSScrollView) - buscar NSTextView hijos
+        if let textView = findTextView(under: clickedView) {
+            let locInTextView = textView.convert(locationInContentView, from: contentView)
+            return textView.bounds.contains(locInTextView)
+        }
+        return false
+    }
+
+    private func findTextView(under view: NSView) -> NSTextView? {
+        if let tv = view as? NSTextView { return tv }
+        for subview in view.subviews {
+            if let found = findTextView(under: subview) { return found }
+        }
+        return nil
+    }
+
+    private func removeDescriptionBlurMonitor() {
+        if let monitor = descriptionEditMonitor {
+            NSEvent.removeMonitor(monitor)
+            descriptionEditMonitor = nil
+        }
     }
 
     @ViewBuilder
@@ -791,4 +844,8 @@ struct TaskDetailView: View {
         }
         return nil
     }
+}
+
+private extension Notification.Name {
+    static let descriptionBlurSave = Notification.Name("descriptionBlurSave")
 }
