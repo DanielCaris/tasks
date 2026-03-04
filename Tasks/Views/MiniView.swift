@@ -28,7 +28,7 @@ struct MiniView: View {
                                 .fill(taskStore.statusColor(for: task.status))
                                 .frame(width: 8, height: 8)
                             Image(systemName: taskStore.issueTypeIcon(for: task))
-                                .font(.caption2)
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(.secondary)
                             Text(task.externalId)
                                 .font(.caption2)

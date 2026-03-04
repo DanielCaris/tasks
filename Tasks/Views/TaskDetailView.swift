@@ -196,7 +196,7 @@ struct TaskDetailView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: taskStore.issueTypeIcon(for: parent))
-                            .font(.caption)
+                            .font(.system(size: 12, weight: .bold))
                         Text(parent.externalId)
                             .font(.headline)
                     }
@@ -209,7 +209,7 @@ struct TaskDetailView: View {
             }
             HStack(spacing: 4) {
                 Image(systemName: taskStore.issueTypeIcon(for: task))
-                    .font(.caption)
+                    .font(.system(size: 12, weight: .bold))
                 Text(task.externalId)
                     .font(.headline)
             }
@@ -712,7 +712,7 @@ struct TaskDetailView: View {
                             HStack(spacing: 8) {
                                 HStack(spacing: 4) {
                                     Image(systemName: taskStore.issueTypeIcon(for: sub))
-                                        .font(.caption2)
+                                        .font(.system(size: 11, weight: .bold))
                                     Text(sub.externalId)
                                         .font(.caption)
                                         .fontWeight(.medium)
