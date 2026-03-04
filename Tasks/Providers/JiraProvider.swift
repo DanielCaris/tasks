@@ -697,7 +697,7 @@ final class JiraProvider: IssueProviderProtocol {
         components?.queryItems = [
             URLQueryItem(name: "jql", value: "parent=\(parentKey)"),
             URLQueryItem(name: "maxResults", value: "50"),
-            URLQueryItem(name: "fields", value: "summary,status,assignee,priority,created,updated")
+            URLQueryItem(name: "fields", value: "summary,description,status,assignee,priority,created,updated,attachment")
         ]
         return components?.url
     }

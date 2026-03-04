@@ -148,7 +148,9 @@ final class TaskStore: ObservableObject {
 
         do {
             let dtos = try await provider.fetchIssues()
-            await mergeWithLocalData(dtos: dtos, providerId: type(of: provider).providerId)
+            let providerId = type(of: provider).providerId
+            await mergeWithLocalData(dtos: dtos, providerId: providerId)
+            await purgeStaleTasks(providerId: providerId, keptExternalIds: Set(dtos.map(\.externalId)))
             await loadTasks()
             transitionsCache.removeAll()
             if let jira = provider as? JiraProvider,
@@ -179,7 +181,12 @@ final class TaskStore: ObservableObject {
             await loadTasks()
         } catch {
             AppLog.error(error.localizedDescription, context: "refreshTask(\(task.externalId))")
-            errorMessage = error.localizedDescription
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -218,6 +225,38 @@ final class TaskStore: ObservableObject {
             }
         }
         try? modelContext.save()
+    }
+
+    /// Elimina tareas locales que ya no existen en el proveedor (ej. borradas en Jira).
+    private func purgeStaleTasks(providerId: String, keptExternalIds: Set<String>) async {
+        let descriptor = FetchDescriptor<TaskItem>(
+            predicate: #Predicate<TaskItem> { $0.providerId == providerId },
+            sortBy: [SortDescriptor(\.taskId)]
+        )
+        guard let allForProvider = try? modelContext.fetch(descriptor) else { return }
+        for task in allForProvider where !keptExternalIds.contains(task.externalId) {
+            modelContext.delete(task)
+        }
+        try? modelContext.save()
+    }
+
+    /// Elimina una tarea de la lista local (sin borrarla en Jira). Útil cuando la tarea ya no existe o no hay permisos.
+    func deleteTaskFromList(_ task: TaskItem) {
+        let parentId = task.externalId
+        let subtasksToDelete = tasks.filter { $0.parentExternalId == parentId }
+        for t in subtasksToDelete {
+            modelContext.delete(t)
+        }
+        modelContext.delete(task)
+        invalidateTransitionsCache(for: task)
+        try? modelContext.save()
+        Task { await loadTasks() }
+    }
+
+    private func isNotFoundOrForbidden(_ error: Error) -> Bool {
+        guard let jiraError = error as? JiraError,
+              case .apiError(let code, _) = jiraError else { return false }
+        return code == 403 || code == 404
     }
 
     func loadTasks() async {
@@ -280,7 +319,12 @@ final class TaskStore: ObservableObject {
             print("[Tasks] updateTaskInProvider: guardado completado")
         } catch {
             AppLog.error(error.localizedDescription, context: "updateTaskInProvider(\(task.externalId))")
-            errorMessage = error.localizedDescription
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -296,7 +340,12 @@ final class TaskStore: ObservableObject {
             return transitions
         } catch {
             AppLog.error(error.localizedDescription, context: "getTransitions(\(task.externalId))")
-            errorMessage = error.localizedDescription
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
             return []
         }
     }
@@ -320,7 +369,12 @@ final class TaskStore: ObservableObject {
             try? modelContext.save()
         } catch {
             AppLog.error(error.localizedDescription, context: "transitionTask(\(task.externalId))")
-            errorMessage = error.localizedDescription
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -430,7 +484,12 @@ final class TaskStore: ObservableObject {
             return tasks.filter { $0.parentExternalId == task.externalId }
         } catch {
             AppLog.error(error.localizedDescription, context: "fetchSubtasks(\(task.externalId))")
-            errorMessage = error.localizedDescription
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
             return []
         }
     }
@@ -482,7 +541,12 @@ final class TaskStore: ObservableObject {
             await refreshTask(task)
         } catch {
             AppLog.error(error.localizedDescription, context: "assignToMe(\(task.externalId))")
-            errorMessage = error.localizedDescription
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

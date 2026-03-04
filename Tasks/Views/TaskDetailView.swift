@@ -93,6 +93,19 @@ struct TaskDetailView: View {
                 .padding(24)
             }
         }
+        .onChange(of: task.taskId) { _, _ in
+            // Al cambiar de tarea, resetear estado para evitar descripciones "pegadas" de la anterior
+            urgency = task.urgency ?? 1
+            impact = task.impact ?? 1
+            effort = task.effort ?? 1
+            editableTitle = task.title
+            editableDescription = Self.initialDescriptionMarkdown(for: task)
+            optimisticDescriptionADF = nil
+            if isEditingDescription {
+                removeDescriptionBlurMonitor()
+                isEditingDescription = false
+            }
+        }
         .onChange(of: task.urgency) { _, newValue in
             if let v = newValue { urgency = v }
         }
@@ -343,6 +356,10 @@ struct TaskDetailView: View {
             .frame(height: 28)
             .task(id: task.taskId) {
                 await loadTransitions()
+                // Si la descripción está vacía, cargarla desde Jira (p. ej. subtareas o caché incompleta)
+                if taskHasNoDescription(task) {
+                    await taskStore.refreshTask(task)
+                }
             }
 
             if task.providerId == JiraProvider.providerId {
@@ -387,6 +404,7 @@ struct TaskDetailView: View {
                                 isEditingDescription = true
                             }
                         )
+                        .id(task.taskId)
                         .frame(maxWidth: .infinity, minHeight: descHeight, maxHeight: descHeight, alignment: .topLeading)
                     }
                 } else {
@@ -512,6 +530,14 @@ struct TaskDetailView: View {
 
     private var hasEdits: Bool {
         editableTitle != task.title || editableDescription != Self.initialDescriptionMarkdown(for: task)
+    }
+
+    /// Indica si la tarea no tiene descripción cargada (vacía o nil).
+    private func taskHasNoDescription(_ t: TaskItem) -> Bool {
+        let hasHTML = (t.descriptionHTML ?? "").isEmpty == false
+        let hasADF = (t.descriptionADFJSON ?? "").isEmpty == false
+        let hasText = (t.descriptionText ?? "").isEmpty == false
+        return !hasHTML && !hasADF && !hasText
     }
 
     private func saveToJira() {

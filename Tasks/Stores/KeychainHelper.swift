@@ -100,6 +100,7 @@ enum KeychainHelper {
         "Blocked": "E53935",
         "Bloqueado": "E53935",
         "Cancelled": "757575",
+        "Canceled": "757575",
         "Cancelado": "757575",
         "Review": "7E57C2",
         "Revisión": "7E57C2",
