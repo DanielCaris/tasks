@@ -19,6 +19,8 @@ protocol IssueProviderProtocol {
     func createIssue(projectKey: String, title: String, description: String?) async throws -> IssueDTO
     /// Crea una subtarea bajo un issue padre. Retorna el IssueDTO de la subtarea creada. nil si no soportado.
     func createSubtask(parentExternalId: String, title: String, description: String?) async throws -> IssueDTO?
+    /// Crea una tarea bajo una épica (Epic Link). Retorna el IssueDTO. nil si no soportado.
+    func createTaskUnderEpic(epicKey: String, title: String, description: String?) async throws -> IssueDTO?
     /// Lista proyectos disponibles para crear issues.
     func fetchProjects() async throws -> [ProjectOption]
     /// Transiciones de status disponibles para un issue. Retorna vacío si no se soporta.
@@ -44,6 +46,10 @@ extension IssueProviderProtocol {
     }
 
     func createSubtask(parentExternalId: String, title: String, description: String?) async throws -> IssueDTO? {
+        nil
+    }
+
+    func createTaskUnderEpic(epicKey: String, title: String, description: String?) async throws -> IssueDTO? {
         nil
     }
 

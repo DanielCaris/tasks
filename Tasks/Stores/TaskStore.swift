@@ -73,6 +73,17 @@ final class TaskStore: ObservableObject {
         return Color(hex: hex)
     }
 
+    /// Icono SF Symbol outline según tipo: épica rayo, historia marcador, task checkbox, sub-task indent.
+    func issueTypeIcon(for task: TaskItem) -> String {
+        switch task.issueType?.lowercased() {
+        case "epic": return "bolt"
+        case "task": return "checkmark.square"
+        case "story": return "bookmark"
+        case "sub-task", "subtask": return "arrow.turn.down.right"
+        default: return "circle"
+        }
+    }
+
     func setStatusColor(_ status: String, hex: String) {
         var updated = statusColors
         updated[status] = hex
@@ -204,6 +215,7 @@ final class TaskStore: ObservableObject {
                 existing.descriptionADFJSON = dto.descriptionADFJSON
                 existing.descriptionMarkdown = nil
                 existing.parentExternalId = dto.parentExternalId
+                existing.issueType = dto.issueType
                 existing.url = dto.url
                 existing.priority = dto.priority
                 existing.lastSyncedAt = Date()
@@ -218,6 +230,7 @@ final class TaskStore: ObservableObject {
                     descriptionHTML: dto.descriptionHTML,
                     descriptionADFJSON: dto.descriptionADFJSON,
                     parentExternalId: dto.parentExternalId,
+                    issueType: dto.issueType,
                     url: dto.url,
                     priority: dto.priority
                 )
@@ -417,7 +430,14 @@ final class TaskStore: ObservableObject {
             return nil
         }
         do {
-            guard let dto = try await provider.createSubtask(parentExternalId: parentTask.externalId, title: title, description: description) else {
+            let dto: IssueDTO?
+            if parentTask.issueType?.lowercased() == "epic",
+               let jiraProvider = provider as? JiraProvider {
+                dto = try await jiraProvider.createTaskUnderEpic(epicKey: parentTask.externalId, title: title, description: description)
+            } else {
+                dto = try await provider.createSubtask(parentExternalId: parentTask.externalId, title: title, description: description)
+            }
+            guard let dto else {
                 let msg = "Este proveedor no soporta crear subtareas."
                 AppLog.error(msg, context: "createSubtask")
                 errorMessage = msg
@@ -465,7 +485,8 @@ final class TaskStore: ObservableObject {
     func fetchSubtasks(for task: TaskItem) async -> [TaskItem] {
         guard let provider = provider as? JiraProvider else { return [] }
         do {
-            let dtos = try await provider.fetchSubtasks(parentKey: task.externalId)
+            let isEpic = task.issueType?.lowercased() == "epic"
+            let dtos = try await provider.fetchSubtasks(parentKey: task.externalId, isEpic: isEpic)
             let existingIds = Set(tasks.map(\.taskId))
             await mergeWithLocalData(dtos: dtos, providerId: JiraProvider.providerId)
             try? modelContext.save()

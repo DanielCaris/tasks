@@ -52,9 +52,9 @@ final class JiraProvider: IssueProviderProtocol {
         return try await parseSearchResponse(data: data)
     }
 
-    /// Obtiene las subtareas de un issue padre.
-    func fetchSubtasks(parentKey: String) async throws -> [IssueDTO] {
-        guard let url = buildSubtasksURL(parentKey: parentKey) else {
+    /// Obtiene las subtareas/hijos de un issue padre. Si isEpic, usa "Epic Link" en JQL.
+    func fetchSubtasks(parentKey: String, isEpic: Bool = false) async throws -> [IssueDTO] {
+        guard let url = buildSubtasksURL(parentKey: parentKey, isEpic: isEpic) else {
             throw JiraError.invalidURL
         }
         var request = URLRequest(url: url)
@@ -73,7 +73,7 @@ final class JiraProvider: IssueProviderProtocol {
             let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
             throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
         }
-        return try await parseSearchResponse(data: data, parentKey: parentKey)
+        return try await parseSearchResponse(data: data, parentKey: parentKey, forceParentKey: isEpic)
     }
 
     func fetchProjects() async throws -> [ProjectOption] {
@@ -365,9 +365,127 @@ final class JiraProvider: IssueProviderProtocol {
             parentExternalId: parentExternalId,
             url: dto.url,
             priority: dto.priority,
+            issueType: dto.issueType,
             createdAt: dto.createdAt,
             updatedAt: dto.updatedAt
         )
+    }
+
+    /// Crea una tarea (Task) bajo una épica. Usa Epic Link si existe; si no, intenta parent (proyectos team-managed).
+    func createTaskUnderEpic(epicKey: String, title: String, description: String?) async throws -> IssueDTO? {
+        let projectKey = epicKey.split(separator: "-").first.map(String.init) ?? ""
+        guard !projectKey.isEmpty else { throw JiraError.apiError(statusCode: 400, message: "Clave de proyecto inválida") }
+
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue") else {
+            throw JiraError.invalidURL
+        }
+
+        var fields: [String: Any] = [
+            "project": ["key": projectKey.uppercased()],
+            "summary": title,
+            "issuetype": ["name": "Task"]
+        ]
+        if let epicLinkFieldId = try await fetchEpicLinkFieldId() {
+            fields[epicLinkFieldId] = epicKey
+        } else {
+            // Fallback: proyectos team-managed usan parent para la jerarquía de épicas
+            AppLog.warning("Epic Link no encontrado; intentando con parent (proyectos team-managed)", context: "createTaskUnderEpic")
+            fields["parent"] = ["key": epicKey]
+        }
+        if let description, !description.isEmpty {
+            fields["description"] = MarkdownToADF.convert(description)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["fields": fields])
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+
+        struct CreateResponse: Decodable {
+            let key: String
+        }
+        let createResponse = try JSONDecoder().decode(CreateResponse.self, from: data)
+        let dto = try await fetchIssueInternal(issueKey: createResponse.key)
+        return IssueDTO(
+            externalId: dto.externalId,
+            title: dto.title,
+            status: dto.status,
+            assignee: dto.assignee,
+            description: dto.description,
+            descriptionHTML: dto.descriptionHTML,
+            descriptionADFJSON: dto.descriptionADFJSON,
+            parentExternalId: epicKey,
+            url: dto.url,
+            priority: dto.priority,
+            issueType: dto.issueType,
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt
+        )
+    }
+
+    /// Obtiene el ID del campo Epic Link (customfield_XXXXX) desde la API de campos.
+    /// Busca por schema (epic-link) o por nombre "Epic Link".
+    private func fetchEpicLinkFieldId() async throws -> String? {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/field") else {
+            return nil
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            return nil
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            return nil
+        }
+
+        guard let fields = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            return nil
+        }
+
+        for field in fields {
+            guard let id = field["id"] as? String,
+                  id.hasPrefix("customfield_") else {
+                continue
+            }
+            // 1. Buscar por schema (epic-link)
+            if let schema = field["schema"] as? [String: Any],
+               let custom = schema["custom"] as? String,
+               (custom.contains("epic-link") || custom.contains("epiclink")) {
+                return id
+            }
+            // 2. Fallback: buscar por nombre "Epic Link" (o "Epic link", "Enlace de épica", etc.)
+            if let name = field["name"] as? String {
+                let n = name.lowercased()
+                if (n.contains("epic") && n.contains("link")) || (n.contains("épica") && n.contains("enlace")) {
+                    return id
+                }
+            }
+        }
+        return nil
     }
 
     func fetchIssue(externalId: String) async throws -> IssueDTO? {
@@ -481,7 +599,7 @@ final class JiraProvider: IssueProviderProtocol {
     }
 
     private func fetchIssueInternal(issueKey: String) async throws -> IssueDTO {
-        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=summary,description,status,priority,assignee,created,updated,attachment") else {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=summary,description,status,priority,assignee,created,updated,attachment,issuetype") else {
             throw JiraError.invalidURL
         }
 
@@ -542,6 +660,7 @@ final class JiraProvider: IssueProviderProtocol {
             parentExternalId: nil,
             url: browseURL,
             priority: issue.fields.priority?.name,
+            issueType: issue.fields.issuetype?.name,
             createdAt: issue.fields.created,
             updatedAt: issue.fields.updated
         )
@@ -636,7 +755,7 @@ final class JiraProvider: IssueProviderProtocol {
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "100"),
-            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment,parent")
+            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment,parent,issuetype")
         ]
         return components?.url
     }
@@ -692,12 +811,13 @@ final class JiraProvider: IssueProviderProtocol {
         return ["name": "Sub-task"]
     }
 
-    private func buildSubtasksURL(parentKey: String) -> URL? {
+    private func buildSubtasksURL(parentKey: String, isEpic: Bool = false) -> URL? {
         var components = URLComponents(string: "\(baseURL)/rest/api/3/search/jql")
+        let jql = isEpic ? "\"Epic Link\" = \(parentKey)" : "parent = \(parentKey)"
         components?.queryItems = [
-            URLQueryItem(name: "jql", value: "parent=\(parentKey)"),
+            URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "50"),
-            URLQueryItem(name: "fields", value: "summary,description,status,assignee,priority,created,updated,attachment")
+            URLQueryItem(name: "fields", value: "summary,description,status,assignee,priority,created,updated,attachment,issuetype,parent")
         ]
         return components?.url
     }
@@ -722,7 +842,7 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
-    private func parseSearchResponse(data: Data, parentKey: String? = nil) async throws -> [IssueDTO] {
+    private func parseSearchResponse(data: Data, parentKey: String? = nil, forceParentKey: Bool = false) async throws -> [IssueDTO] {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -762,7 +882,7 @@ final class JiraProvider: IssueProviderProtocol {
             let mediaIdToSignedURL = await buildMediaIdToSignedURLMap(attachments: attachments)
             let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
             let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
-            let resolvedParent = parentKey ?? issue.fields.parent?.key
+            let resolvedParent: String? = forceParentKey ? parentKey : (parentKey ?? issue.fields.parent?.key)
             results.append(IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
@@ -774,6 +894,7 @@ final class JiraProvider: IssueProviderProtocol {
                 parentExternalId: resolvedParent,
                 url: url,
                 priority: issue.fields.priority?.name,
+                issueType: issue.fields.issuetype?.name,
                 createdAt: createdAt,
                 updatedAt: updatedAt
             ))
@@ -803,10 +924,15 @@ private struct JiraIssueFields: Decodable {
     let status: JiraStatus
     let priority: JiraPriority?
     let assignee: JiraUser?
+    let issuetype: JiraIssueType?
     let created: Date?
     let updated: Date?
     let attachment: [JiraAttachment]?
     let parent: JiraParent?
+}
+
+private struct JiraIssueType: Decodable {
+    let name: String
 }
 
 private struct JiraParent: Decodable {

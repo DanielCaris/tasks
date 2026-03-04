@@ -129,15 +129,20 @@ struct TaskDetailView: View {
         }
     }
 
+    private var isEpic: Bool {
+        task.issueType?.lowercased() == "epic"
+    }
+
     private var addSubtaskSheet: some View {
-        Form {
+        let childLabel = isEpic ? "tarea" : "subtarea"
+        return Form {
             Section {
-                TextField("Título de la subtarea", text: $newSubtaskTitle, prompt: Text("Resumen de la subtarea"))
+                TextField("Título de la \(childLabel)", text: $newSubtaskTitle, prompt: Text("Resumen de la \(childLabel)"))
                     .textContentType(.none)
             } header: {
-                Text("Nueva subtarea")
+                Text(isEpic ? "Nueva tarea" : "Nueva subtarea")
             } footer: {
-                Text("La subtarea se creará en Jira bajo \(task.externalId).")
+                Text(isEpic ? "La tarea se creará en Jira bajo la épica \(task.externalId)." : "La subtarea se creará en Jira bajo \(task.externalId).")
             }
 
             Section("Descripción") {
@@ -152,7 +157,7 @@ struct TaskDetailView: View {
                     createSubtask()
                 } label: {
                     Label {
-                        Text("Crear subtarea")
+                        Text(isEpic ? "Crear tarea" : "Crear subtarea")
                     } icon: {
                         if isCreatingSubtask {
                             ProgressView()
@@ -189,18 +194,26 @@ struct TaskDetailView: View {
                 Button {
                     onSelectParent(parent)
                 } label: {
-                    Text(parent.externalId)
-                        .font(.headline)
-                        .foregroundStyle(Color.accentColor)
+                    HStack(spacing: 4) {
+                        Image(systemName: taskStore.issueTypeIcon(for: parent))
+                            .font(.caption)
+                        Text(parent.externalId)
+                            .font(.headline)
+                    }
+                    .foregroundStyle(Color.accentColor)
                 }
                 .buttonStyle(.plain)
                 Text("›")
                     .font(.headline)
                     .foregroundStyle(.tertiary)
             }
-            Text(task.externalId)
-                .font(.headline)
-                .foregroundStyle(.secondary)
+            HStack(spacing: 4) {
+                Image(systemName: taskStore.issueTypeIcon(for: task))
+                    .font(.caption)
+                Text(task.externalId)
+                    .font(.headline)
+            }
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -608,7 +621,7 @@ struct TaskDetailView: View {
             let subsFiltered = subsRaw.filter { !taskStore.excludedSubtaskStatuses.contains($0.status) }
             let subs = sortedSubtasks(subsFiltered)
             HStack(alignment: .center, spacing: 8) {
-                Text("Subtareas")
+                Text(isEpic ? "Tareas" : "Subtareas")
                     .font(.headline)
                 if isLoadingSubtasks {
                     ProgressView()
@@ -678,14 +691,16 @@ struct TaskDetailView: View {
                         newSubtaskDescription = ""
                         showingAddSubtask = true
                     } label: {
-                        Label("Agregar subtarea", systemImage: "plus.circle.fill")
+                        Label(isEpic ? "Agregar tarea" : "Agregar subtarea", systemImage: "plus.circle.fill")
                             .font(.subheadline)
                     }
                     .buttonStyle(.borderless)
                 }
             }
             if subs.isEmpty && !isLoadingSubtasks {
-                Text(subsRaw.isEmpty ? "Sin subtareas" : "Todas las subtareas están ocultas por el filtro")
+                Text(subsRaw.isEmpty
+                     ? (isEpic ? "Sin tareas" : "Sin subtareas")
+                     : (isEpic ? "Todas las tareas están ocultas por el filtro" : "Todas las subtareas están ocultas por el filtro"))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -695,11 +710,15 @@ struct TaskDetailView: View {
                             onSelectSubtask?(sub)
                         } label: {
                             HStack(spacing: 8) {
-                                Text(sub.externalId)
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 60, alignment: .leading)
+                                HStack(spacing: 4) {
+                                    Image(systemName: taskStore.issueTypeIcon(for: sub))
+                                        .font(.caption2)
+                                    Text(sub.externalId)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                .foregroundStyle(.secondary)
+                                .frame(width: 60, alignment: .leading)
                                 Text(sub.title)
                                     .font(.body)
                                     .lineLimit(1)

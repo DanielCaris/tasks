@@ -19,6 +19,7 @@ struct IssueDTO: Identifiable {
     let parentExternalId: String?  // Si es subtarea, clave del issue padre
     let url: URL?
     let priority: String?
+    let issueType: String?  // "Epic", "Task", "Story", "Sub-task", etc.
     let createdAt: Date?
     let updatedAt: Date?
 
@@ -35,6 +36,7 @@ struct IssueDTO: Identifiable {
         parentExternalId: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
+        issueType: String? = nil,
         createdAt: Date? = nil,
         updatedAt: Date? = nil
     ) {
@@ -48,6 +50,7 @@ struct IssueDTO: Identifiable {
         self.parentExternalId = parentExternalId
         self.url = url
         self.priority = priority
+        self.issueType = issueType
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

@@ -16,6 +16,7 @@ final class TaskItem {
     var descriptionADFJSON: String?  // ADF crudo para edición Markdown bidireccional
     var descriptionMarkdown: String?  // Markdown exacto del usuario al guardar (preserva formato)
     var parentExternalId: String?  // Si es subtarea, clave del issue padre
+    var issueType: String?  // "Epic", "Task", "Story", "Sub-task", etc.
     var urlString: String?
     var priority: String?
     var urgency: Int?
@@ -34,6 +35,7 @@ final class TaskItem {
         descriptionADFJSON: String? = nil,
         descriptionMarkdown: String? = nil,
         parentExternalId: String? = nil,
+        issueType: String? = nil,
         url: URL? = nil,
         priority: String? = nil,
         urgency: Int? = nil,
@@ -51,6 +53,7 @@ final class TaskItem {
         self.descriptionADFJSON = descriptionADFJSON
         self.descriptionMarkdown = descriptionMarkdown
         self.parentExternalId = parentExternalId
+        self.issueType = issueType
         self.urlString = url?.absoluteString
         self.priority = priority
         self.urgency = urgency

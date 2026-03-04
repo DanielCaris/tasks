@@ -25,9 +25,12 @@ struct TaskRowView: View {
                         Circle()
                             .fill(taskStore.statusColor(for: task.status))
                             .frame(width: 8, height: 8)
+                        Image(systemName: taskStore.issueTypeIcon(for: task))
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                         Text(task.externalId)
                             .font(.caption)
-                            .fontWeight(.medium)
+                            .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
                     }
 
