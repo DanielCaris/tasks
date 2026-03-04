@@ -23,6 +23,8 @@ final class TaskItem {
     var impact: Int?
     var effort: Int?
     var lastSyncedAt: Date?
+    var labelsString: String?  // Comma-separated labels from Jira
+    var sprint: String?  // Sprint name
 
     init(
         providerId: String,
@@ -40,7 +42,9 @@ final class TaskItem {
         priority: String? = nil,
         urgency: Int? = nil,
         impact: Int? = nil,
-        effort: Int? = nil
+        effort: Int? = nil,
+        labelsString: String? = nil,
+        sprint: String? = nil
     ) {
         self.taskId = "\(providerId):\(externalId)"
         self.providerId = providerId
@@ -59,7 +63,15 @@ final class TaskItem {
         self.urgency = urgency
         self.impact = impact
         self.effort = effort
+        self.labelsString = labelsString
+        self.sprint = sprint
         self.lastSyncedAt = Date()
+    }
+
+    /// Labels como array (vacío si no hay).
+    var labels: [String] {
+        guard let s = labelsString, !s.isEmpty else { return [] }
+        return s.split(separator: ",").map { String($0.trimmingCharacters(in: .whitespaces)) }.filter { !$0.isEmpty }
     }
 
     var url: URL? {

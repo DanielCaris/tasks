@@ -7,6 +7,13 @@ struct ProjectOption: Identifiable {
     var id: String { key }
 }
 
+/// Opción de sprint para asignar a un issue.
+struct SprintOption: Identifiable {
+    let id: Int
+    let name: String
+    let state: String?  // "active", "closed", "future"
+}
+
 /// DTO genérico para mapear issues desde cualquier provider (Jira, Linear, etc.)
 struct IssueDTO: Identifiable {
     let externalId: String
@@ -22,6 +29,8 @@ struct IssueDTO: Identifiable {
     let issueType: String?  // "Epic", "Task", "Story", "Sub-task", etc.
     let createdAt: Date?
     let updatedAt: Date?
+    let labels: [String]?
+    let sprint: String?
 
     var id: String { externalId }
 
@@ -38,7 +47,9 @@ struct IssueDTO: Identifiable {
         priority: String? = nil,
         issueType: String? = nil,
         createdAt: Date? = nil,
-        updatedAt: Date? = nil
+        updatedAt: Date? = nil,
+        labels: [String]? = nil,
+        sprint: String? = nil
     ) {
         self.externalId = externalId
         self.title = title
@@ -53,5 +64,7 @@ struct IssueDTO: Identifiable {
         self.issueType = issueType
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.labels = labels
+        self.sprint = sprint
     }
 }

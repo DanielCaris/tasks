@@ -519,6 +519,117 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
+    /// Actualiza los labels de un issue (reemplaza todos).
+    func updateIssueLabels(externalId: String, labels: [String]) async throws {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(externalId)") else {
+            throw JiraError.invalidURL
+        }
+        let body: [String: Any] = ["fields": ["labels": labels]]
+        var request = URLRequest(url: url)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+    }
+
+    /// Obtiene sprints disponibles para un proyecto (primer board encontrado).
+    func fetchSprints(projectKey: String) async throws -> [SprintOption] {
+        guard let boardsURL = URL(string: "\(baseURL)/rest/agile/1.0/board?projectKeyOrId=\(projectKey)") else {
+            throw JiraError.invalidURL
+        }
+        var request = URLRequest(url: boardsURL)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        let (boardsData, _) = try await URLSession.shared.data(for: request)
+        struct BoardsResponse: Decodable {
+            let values: [BoardItem]?
+        }
+        struct BoardItem: Decodable {
+            let id: Int
+        }
+        let boards = try JSONDecoder().decode(BoardsResponse.self, from: boardsData)
+        guard let boardId = boards.values?.first?.id else {
+            return []
+        }
+        struct SprintsResponse: Decodable {
+            let values: [SprintItem]?
+            let total: Int?
+        }
+        struct SprintItem: Decodable {
+            let id: Int
+            let name: String
+            let state: String?
+        }
+        // Primera petición: obtener total de sprints
+        guard let totalURL = URL(string: "\(baseURL)/rest/agile/1.0/board/\(boardId)/sprint?state=active,future&maxResults=1&startAt=0") else {
+            throw JiraError.invalidURL
+        }
+        request.url = totalURL
+        let (totalData, totalResp) = try await URLSession.shared.data(for: request)
+        guard let totalHttp = totalResp as? HTTPURLResponse, (200...299).contains(totalHttp.statusCode) else {
+            return []
+        }
+        let totalResponse = try JSONDecoder().decode(SprintsResponse.self, from: totalData)
+        let total = totalResponse.total ?? 0
+        // Últimas 4 semanas ≈ 2 sprints; pedimos hasta 10. startAt = total - 10 para los más recientes
+        let startAt = max(0, total - 10)
+        guard let sprintsURL = URL(string: "\(baseURL)/rest/agile/1.0/board/\(boardId)/sprint?state=active,future&maxResults=10&startAt=\(startAt)") else {
+            throw JiraError.invalidURL
+        }
+        request.url = sprintsURL
+        let (sprintsData, sprintResponse) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = sprintResponse as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+            return []
+        }
+        let sprints = try JSONDecoder().decode(SprintsResponse.self, from: sprintsData)
+        let items = (sprints.values ?? []).prefix(10)
+        return items.map { SprintOption(id: $0.id, name: $0.name, state: $0.state) }
+    }
+
+    /// Añade un issue a un sprint (Agile API).
+    func addIssueToSprint(issueKey: String, sprintId: Int) async throws {
+        guard let url = URL(string: "\(baseURL)/rest/agile/1.0/sprint/\(sprintId)/issue") else {
+            throw JiraError.invalidURL
+        }
+        let body: [String: Any] = ["issues": [issueKey]]
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+    }
+
     private func fetchCurrentUserAccountId() async throws -> String {
         guard let url = URL(string: "\(baseURL)/rest/api/3/myself") else {
             throw JiraError.invalidURL
@@ -599,7 +710,7 @@ final class JiraProvider: IssueProviderProtocol {
     }
 
     private func fetchIssueInternal(issueKey: String) async throws -> IssueDTO {
-        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=summary,description,status,priority,assignee,created,updated,attachment,issuetype") else {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=summary,description,status,priority,assignee,created,updated,attachment,issuetype,labels,customfield_10020") else {
             throw JiraError.invalidURL
         }
 
@@ -649,6 +760,8 @@ final class JiraProvider: IssueProviderProtocol {
         let mediaIdToSignedURL = await buildMediaIdToSignedURLMap(attachments: attachments)
         let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
         let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
+        let labels = issue.fields.labels?.isEmpty == false ? issue.fields.labels : nil
+        let sprint = issue.fields.sprintName
         return IssueDTO(
             externalId: issue.key,
             title: issue.fields.summary,
@@ -662,7 +775,9 @@ final class JiraProvider: IssueProviderProtocol {
             priority: issue.fields.priority?.name,
             issueType: issue.fields.issuetype?.name,
             createdAt: issue.fields.created,
-            updatedAt: issue.fields.updated
+            updatedAt: issue.fields.updated,
+            labels: labels,
+            sprint: sprint
         )
     }
 
@@ -755,7 +870,7 @@ final class JiraProvider: IssueProviderProtocol {
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "100"),
-            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment,parent,issuetype")
+            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment,parent,issuetype,labels,customfield_10020")
         ]
         return components?.url
     }
@@ -817,7 +932,7 @@ final class JiraProvider: IssueProviderProtocol {
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "50"),
-            URLQueryItem(name: "fields", value: "summary,description,status,assignee,priority,created,updated,attachment,issuetype,parent")
+            URLQueryItem(name: "fields", value: "summary,description,status,assignee,priority,created,updated,attachment,issuetype,parent,labels,customfield_10020")
         ]
         return components?.url
     }
@@ -883,6 +998,8 @@ final class JiraProvider: IssueProviderProtocol {
             let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
             let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
             let resolvedParent: String? = forceParentKey ? parentKey : (parentKey ?? issue.fields.parent?.key)
+            let labels = issue.fields.labels?.isEmpty == false ? issue.fields.labels : nil
+            let sprint = issue.fields.sprintName
             results.append(IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
@@ -896,7 +1013,9 @@ final class JiraProvider: IssueProviderProtocol {
                 priority: issue.fields.priority?.name,
                 issueType: issue.fields.issuetype?.name,
                 createdAt: createdAt,
-                updatedAt: updatedAt
+                updatedAt: updatedAt,
+                labels: labels,
+                sprint: sprint
             ))
         }
         return results
@@ -929,6 +1048,18 @@ private struct JiraIssueFields: Decodable {
     let updated: Date?
     let attachment: [JiraAttachment]?
     let parent: JiraParent?
+    let labels: [String]?
+    /// Sprint field (customfield_10020 en Jira Software Cloud). Array de objetos con "name".
+    let customfield_10020: [JiraSprintInfo]?
+
+    /// Nombre del sprint activo (primer elemento del array).
+    var sprintName: String? {
+        customfield_10020?.first?.name
+    }
+}
+
+private struct JiraSprintInfo: Decodable {
+    let name: String?
 }
 
 private struct JiraIssueType: Decodable {

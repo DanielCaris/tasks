@@ -51,6 +51,11 @@ struct TaskDetailView: View {
     @State private var debouncedSaveTask: Task<Void, Never>? = nil
     @State private var descriptionEditMonitor: Any? = nil
     @FocusState private var isTitleFocused: Bool
+    @State private var editableLabels: [String] = []
+    @State private var newLabelText: String = ""
+    @State private var showingSprintPicker = false
+    @State private var availableSprints: [SprintOption]? = nil  // nil = cargando o inicial, [] = vacío, [x] = con datos
+    @State private var isLoadingSprints = false
 
     init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
         self.task = task
@@ -100,11 +105,21 @@ struct TaskDetailView: View {
             effort = task.effort ?? 1
             editableTitle = task.title
             editableDescription = Self.initialDescriptionMarkdown(for: task)
+            editableLabels = task.labels
             optimisticDescriptionADF = nil
             if isEditingDescription {
                 removeDescriptionBlurMonitor()
                 isEditingDescription = false
             }
+        }
+        .onChange(of: task.labels) { _, _ in
+            editableLabels = task.labels
+        }
+        .sheet(isPresented: $showingSprintPicker) {
+            sprintPickerSheet
+        }
+        .task(id: task.taskId) {
+            editableLabels = task.labels
         }
         .onChange(of: task.urgency) { _, newValue in
             if let v = newValue { urgency = v }
@@ -217,9 +232,216 @@ struct TaskDetailView: View {
         }
     }
 
+    private var labelsAndSprintRow: some View {
+        HStack(spacing: 6) {
+            // Sprint primero
+            if let sprint = task.sprint {
+                HStack(spacing: 6) {
+                    Image(systemName: "flag.checkered")
+                        .font(.caption2)
+                    Text(sprint)
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+            }
+            Button {
+                showingSprintPicker = true
+                isLoadingSprints = true
+                availableSprints = nil  // nil = aún no cargó, evita flash de "no hay sprints"
+                Task {
+                    availableSprints = await taskStore.fetchSprints(for: task)
+                    isLoadingSprints = false
+                }
+            } label: {
+                Label(task.sprint != nil ? "Cambiar sprint" : "Agregar sprint", systemImage: "flag.checkered")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            // Labels después
+            ForEach(editableLabels, id: \.self) { label in
+                HStack(spacing: 2) {
+                    Text(label)
+                        .font(.caption2)
+                    Button {
+                        var updated = editableLabels
+                        updated.removeAll { $0 == label }
+                        editableLabels = updated
+                        Task { await taskStore.updateLabels(task, labels: updated) }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.quaternary.opacity(0.8), in: Capsule())
+            }
+            TextField("Agregar label", text: $newLabelText)
+                .font(.caption)
+                .frame(width: 100)
+                .textFieldStyle(.plain)
+                .onSubmit {
+                    addLabel()
+                }
+            if !newLabelText.trimmingCharacters(in: .whitespaces).isEmpty {
+                Button {
+                    addLabel()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func addLabel() {
+        let label = newLabelText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !label.isEmpty else { return }
+        newLabelText = ""
+        var updated = editableLabels
+        if !updated.contains(label) {
+            updated.append(label)
+            editableLabels = updated
+            Task { await taskStore.updateLabels(task, labels: updated) }
+        }
+    }
+
+    private var sprintPickerSheet: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Seleccionar sprint")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Spacer()
+                Button("Cancelar") {
+                    showingSprintPicker = false
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.bottom, 20)
+
+            if isLoadingSprints || availableSprints == nil {
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    Text("Cargando sprints...")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if availableSprints?.isEmpty == true {
+                ContentUnavailableView(
+                    "Sin sprints",
+                    systemImage: "calendar.badge.exclamationmark",
+                    description: Text("No hay sprints disponibles para este proyecto.")
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let sprints = availableSprints {
+                ScrollView {
+                    VStack(spacing: 8) {
+                        ForEach(sprints) { sprint in
+                            Button {
+                                Task { await taskStore.addToSprint(task, sprintId: sprint.id) }
+                                showingSprintPicker = false
+                            } label: {
+                                HStack(spacing: 12) {
+                                    sprintStateIcon(sprint.state)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(sprint.name)
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        if let state = sprint.state {
+                                            Text(sprintStateLabel(state))
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    sprintStateBadge(sprint.state)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
+                                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .padding(24)
+        .frame(width: 380, height: 340)
+    }
+
+    private func sprintStateIcon(_ state: String?) -> some View {
+        Group {
+            switch state?.lowercased() {
+            case "active":
+                Image(systemName: "play.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.green)
+            case "future":
+                Image(systemName: "calendar.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.blue)
+            case "closed":
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(.secondary)
+            default:
+                Image(systemName: "circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func sprintStateBadge(_ state: String?) -> some View {
+        Group {
+            if let state = state {
+                Text(sprintStateLabel(state))
+                    .font(.caption2)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(sprintStateColor(state).opacity(0.2), in: Capsule())
+                    .foregroundStyle(sprintStateColor(state))
+            }
+        }
+    }
+
+    private func sprintStateLabel(_ state: String) -> String {
+        switch state.lowercased() {
+        case "active": return "Activo"
+        case "future": return "Próximo"
+        case "closed": return "Cerrado"
+        default: return state
+        }
+    }
+
+    private func sprintStateColor(_ state: String) -> Color {
+        switch state.lowercased() {
+        case "active": return .green
+        case "future": return .blue
+        case "closed": return .secondary
+        default: return .secondary
+        }
+    }
+
     private func headerSection(availableHeight: CGFloat = 600) -> some View {
         let _ = taskStore.statusColors
         return VStack(alignment: .leading, spacing: 4) {
+            if task.providerId == JiraProvider.providerId {
+                labelsAndSprintRow
+            }
             HStack(spacing: 8) {
                 breadcrumbView
                 if let url = task.url {

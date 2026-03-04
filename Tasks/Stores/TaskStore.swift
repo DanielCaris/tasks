@@ -79,6 +79,7 @@ final class TaskStore: ObservableObject {
         case "epic": return "bolt"
         case "task": return "checkmark.square"
         case "story": return "bookmark"
+        case "bug": return "ladybug.fill"
         case "sub-task", "subtask": return "arrow.turn.down.right"
         default: return "circle"
         }
@@ -218,6 +219,8 @@ final class TaskStore: ObservableObject {
                 existing.issueType = dto.issueType
                 existing.url = dto.url
                 existing.priority = dto.priority
+                existing.labelsString = dto.labels?.joined(separator: ", ")
+                existing.sprint = dto.sprint
                 existing.lastSyncedAt = Date()
             } else {
                 let task = TaskItem(
@@ -232,7 +235,9 @@ final class TaskStore: ObservableObject {
                     parentExternalId: dto.parentExternalId,
                     issueType: dto.issueType,
                     url: dto.url,
-                    priority: dto.priority
+                    priority: dto.priority,
+                    labelsString: dto.labels?.joined(separator: ", "),
+                    sprint: dto.sprint
                 )
                 modelContext.insert(task)
             }
@@ -562,6 +567,63 @@ final class TaskStore: ObservableObject {
             await refreshTask(task)
         } catch {
             AppLog.error(error.localizedDescription, context: "assignToMe(\(task.externalId))")
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Actualiza los labels de una tarea en Jira. Solo soportado por JiraProvider.
+    func updateLabels(_ task: TaskItem, labels: [String]) async {
+        guard let provider = provider as? JiraProvider else {
+            errorMessage = "Editar labels solo está disponible con Jira."
+            return
+        }
+        errorMessage = nil
+        do {
+            try await provider.updateIssueLabels(externalId: task.externalId, labels: labels)
+            task.labelsString = labels.isEmpty ? nil : labels.joined(separator: ", ")
+            task.lastSyncedAt = Date()
+            try? modelContext.save()
+        } catch {
+            AppLog.error(error.localizedDescription, context: "updateLabels(\(task.externalId))")
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Obtiene sprints disponibles para el proyecto de la tarea. Solo Jira.
+    func fetchSprints(for task: TaskItem) async -> [SprintOption] {
+        guard let provider = provider as? JiraProvider else { return [] }
+        let projectKey = String(task.externalId.split(separator: "-").first ?? "")
+        guard !projectKey.isEmpty else { return [] }
+        do {
+            return try await provider.fetchSprints(projectKey: projectKey)
+        } catch {
+            AppLog.error(error.localizedDescription, context: "fetchSprints(\(task.externalId))")
+            return []
+        }
+    }
+
+    /// Añade la tarea a un sprint en Jira. Solo soportado por JiraProvider.
+    func addToSprint(_ task: TaskItem, sprintId: Int) async {
+        guard let provider = provider as? JiraProvider else {
+            errorMessage = "Asignar sprint solo está disponible con Jira."
+            return
+        }
+        errorMessage = nil
+        do {
+            try await provider.addIssueToSprint(issueKey: task.externalId, sprintId: sprintId)
+            await refreshTask(task)
+        } catch {
+            AppLog.error(error.localizedDescription, context: "addToSprint(\(task.externalId))")
             if isNotFoundOrForbidden(error) {
                 deleteTaskFromList(task)
                 errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
