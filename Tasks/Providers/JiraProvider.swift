@@ -545,30 +545,75 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
-    /// Obtiene sprints disponibles para un proyecto (primer board encontrado).
-    func fetchSprints(projectKey: String) async throws -> [SprintOption] {
-        guard let boardsURL = URL(string: "\(baseURL)/rest/agile/1.0/board?projectKeyOrId=\(projectKey)") else {
-            throw JiraError.invalidURL
-        }
-        var request = URLRequest(url: boardsURL)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
+    /// Obtiene boards disponibles para un proyecto (Scrum primero, fallback sin tipo). Últimos 50 por ID.
+    func fetchBoards(projectKey: String) async throws -> [BoardOption] {
         let credentials = "\(email):\(apiToken)"
         guard let credentialsData = credentials.data(using: .utf8) else {
             throw JiraError.invalidCredentials
         }
-        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
-        let (boardsData, _) = try await URLSession.shared.data(for: request)
+        let authHeader = "Basic \(credentialsData.base64EncodedString())"
+
         struct BoardsResponse: Decodable {
             let values: [BoardItem]?
         }
         struct BoardItem: Decodable {
             let id: Int
+            let name: String
+            let type: String?
         }
-        let boards = try JSONDecoder().decode(BoardsResponse.self, from: boardsData)
-        guard let boardId = boards.values?.first?.id else {
-            return []
+
+        let maxBoards = 50
+        guard let countURL = URL(string: "\(baseURL)/rest/agile/1.0/board?projectKeyOrId=\(projectKey)&type=scrum&maxResults=1&startAt=0") else {
+            throw JiraError.invalidURL
         }
+        var request = URLRequest(url: countURL)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        let (countData, _) = try await URLSession.shared.data(for: request)
+        struct CountResponse: Decodable { let total: Int? }
+        let total = (try? JSONDecoder().decode(CountResponse.self, from: countData))?.total ?? 0
+        let startAt = max(0, total - maxBoards)
+
+        guard let url = URL(string: "\(baseURL)/rest/agile/1.0/board?projectKeyOrId=\(projectKey)&type=scrum&maxResults=\(maxBoards)&startAt=\(startAt)") else {
+            throw JiraError.invalidURL
+        }
+        request.url = url
+        let (boardsData, _) = try await URLSession.shared.data(for: request)
+        var boards = try JSONDecoder().decode(BoardsResponse.self, from: boardsData)
+
+        if boards.values?.isEmpty != false {
+            guard let fallbackCountURL = URL(string: "\(baseURL)/rest/agile/1.0/board?projectKeyOrId=\(projectKey)&maxResults=1&startAt=0") else {
+                return []
+            }
+            request.url = fallbackCountURL
+            let (fcData, _) = try await URLSession.shared.data(for: request)
+            let fallbackTotal = (try? JSONDecoder().decode(CountResponse.self, from: fcData))?.total ?? 0
+            let fallbackStartAt = max(0, fallbackTotal - maxBoards)
+            guard let fallbackURL = URL(string: "\(baseURL)/rest/agile/1.0/board?projectKeyOrId=\(projectKey)&maxResults=\(maxBoards)&startAt=\(fallbackStartAt)") else {
+                return []
+            }
+            request.url = fallbackURL
+            let (fallbackData, _) = try await URLSession.shared.data(for: request)
+            boards = try JSONDecoder().decode(BoardsResponse.self, from: fallbackData)
+        }
+
+        var items = boards.values ?? []
+        items.sort { $0.id > $1.id }
+        return items.map { BoardOption(id: $0.id, name: $0.name) }
+    }
+
+    /// Obtiene sprints de un board específico.
+    func fetchSprintsForBoard(boardId: Int) async throws -> [SprintOption] {
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        let authHeader = "Basic \(credentialsData.base64EncodedString())"
+        return try await fetchSprintsForBoardInternal(boardId: boardId, authHeader: authHeader)
+    }
+
+    private func fetchSprintsForBoardInternal(boardId: Int, authHeader: String) async throws -> [SprintOption] {
         struct SprintsResponse: Decodable {
             let values: [SprintItem]?
             let total: Int?
@@ -578,30 +623,52 @@ final class JiraProvider: IssueProviderProtocol {
             let name: String
             let state: String?
         }
-        // Primera petición: obtener total de sprints
+
         guard let totalURL = URL(string: "\(baseURL)/rest/agile/1.0/board/\(boardId)/sprint?state=active,future&maxResults=1&startAt=0") else {
             throw JiraError.invalidURL
         }
-        request.url = totalURL
+        var request = URLRequest(url: totalURL)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+
         let (totalData, totalResp) = try await URLSession.shared.data(for: request)
-        guard let totalHttp = totalResp as? HTTPURLResponse, (200...299).contains(totalHttp.statusCode) else {
-            return []
+        let totalStatus = (totalResp as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(totalStatus) else {
+            throw JiraError.apiError(statusCode: totalStatus, message: "Board no soporta sprints")
         }
         let totalResponse = try JSONDecoder().decode(SprintsResponse.self, from: totalData)
         let total = totalResponse.total ?? 0
-        // Últimas 4 semanas ≈ 2 sprints; pedimos hasta 10. startAt = total - 10 para los más recientes
-        let startAt = max(0, total - 10)
-        guard let sprintsURL = URL(string: "\(baseURL)/rest/agile/1.0/board/\(boardId)/sprint?state=active,future&maxResults=10&startAt=\(startAt)") else {
+        let maxSprints = 30
+        let startAt = max(0, total - maxSprints)
+        guard let sprintsURL = URL(string: "\(baseURL)/rest/agile/1.0/board/\(boardId)/sprint?state=active,future&maxResults=\(maxSprints)&startAt=\(startAt)") else {
             throw JiraError.invalidURL
         }
         request.url = sprintsURL
         let (sprintsData, sprintResponse) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = sprintResponse as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-            return []
+        let sprintStatus = (sprintResponse as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(sprintStatus) else {
+            throw JiraError.apiError(statusCode: sprintStatus, message: "Error al obtener sprints")
         }
         let sprints = try JSONDecoder().decode(SprintsResponse.self, from: sprintsData)
-        let items = (sprints.values ?? []).prefix(10)
+        let items = (sprints.values ?? []).prefix(maxSprints)
         return items.map { SprintOption(id: $0.id, name: $0.name, state: $0.state) }
+    }
+
+    /// Obtiene sprints para un proyecto (primer board con sprints). Mantiene compatibilidad.
+    func fetchSprints(projectKey: String) async throws -> [SprintOption] {
+        let boards = try await fetchBoards(projectKey: projectKey)
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        let authHeader = "Basic \(credentialsData.base64EncodedString())"
+        for board in boards {
+            if let sprints = try? await fetchSprintsForBoardInternal(boardId: board.id, authHeader: authHeader), !sprints.isEmpty {
+                return sprints
+            }
+        }
+        return []
     }
 
     /// Añade un issue a un sprint (Agile API).

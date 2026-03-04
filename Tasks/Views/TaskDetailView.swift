@@ -54,8 +54,13 @@ struct TaskDetailView: View {
     @State private var editableLabels: [String] = []
     @State private var newLabelText: String = ""
     @State private var showingSprintPicker = false
-    @State private var availableSprints: [SprintOption]? = nil  // nil = cargando o inicial, [] = vacío, [x] = con datos
+    @State private var availableBoards: [BoardOption]? = nil
+    @State private var selectedBoardId: Int? = nil
+    @State private var availableSprints: [SprintOption]? = nil
+    @State private var isLoadingBoards = false
     @State private var isLoadingSprints = false
+    @State private var boardSearchText = ""
+    @State private var sprintSearchText = ""
 
     init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
         self.task = task
@@ -234,30 +239,33 @@ struct TaskDetailView: View {
 
     private var labelsAndSprintRow: some View {
         HStack(spacing: 6) {
-            // Sprint primero
-            if let sprint = task.sprint {
-                HStack(spacing: 6) {
+            // Sprint: pill clickeable siempre (abre picker para agregar o cambiar)
+            Button {
+                showingSprintPicker = true
+                selectedBoardId = nil
+                availableBoards = nil
+                availableSprints = nil
+                boardSearchText = ""
+                sprintSearchText = ""
+                isLoadingBoards = true
+                isLoadingSprints = false
+                Task {
+                    availableBoards = await taskStore.fetchBoards(for: task)
+                    isLoadingBoards = false
+                }
+            } label: {
+                HStack(spacing: 4) {
                     Image(systemName: "flag.checkered")
                         .font(.caption2)
-                    Text(sprint)
+                    Text(task.sprint ?? "Agregar sprint")
                         .font(.caption2)
                 }
                 .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.quaternary.opacity(0.8), in: Capsule())
             }
-            Button {
-                showingSprintPicker = true
-                isLoadingSprints = true
-                availableSprints = nil  // nil = aún no cargó, evita flash de "no hay sprints"
-                Task {
-                    availableSprints = await taskStore.fetchSprints(for: task)
-                    isLoadingSprints = false
-                }
-            } label: {
-                Label(task.sprint != nil ? "Cambiar sprint" : "Agregar sprint", systemImage: "flag.checkered")
-                    .font(.caption)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+            .buttonStyle(.plain)
             // Labels después
             ForEach(editableLabels, id: \.self) { label in
                 HStack(spacing: 2) {
@@ -286,21 +294,12 @@ struct TaskDetailView: View {
                 .onSubmit {
                     addLabel()
                 }
-            if !newLabelText.trimmingCharacters(in: .whitespaces).isEmpty {
-                Button {
-                    addLabel()
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-            }
         }
         .padding(.vertical, 6)
     }
 
     private func addLabel() {
-        let label = newLabelText.trimmingCharacters(in: .whitespaces).lowercased()
+        let label = newLabelText.trimmingCharacters(in: .whitespaces)
         guard !label.isEmpty else { return }
         newLabelText = ""
         var updated = editableLabels
@@ -314,7 +313,20 @@ struct TaskDetailView: View {
     private var sprintPickerSheet: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("Seleccionar sprint")
+                if selectedBoardId != nil {
+                    Button {
+                        selectedBoardId = nil
+                        availableSprints = nil
+                        sprintSearchText = ""
+                        isLoadingSprints = false
+                    } label: {
+                        Image(systemName: "chevron.left")
+                        Text("Boards")
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+                Text(selectedBoardId == nil ? "Seleccionar board" : "Seleccionar sprint")
                     .font(.title2)
                     .fontWeight(.semibold)
                 Spacer()
@@ -325,55 +337,119 @@ struct TaskDetailView: View {
             }
             .padding(.bottom, 20)
 
-            if isLoadingSprints || availableSprints == nil {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                    Text("Cargando sprints...")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if availableSprints?.isEmpty == true {
-                ContentUnavailableView(
-                    "Sin sprints",
-                    systemImage: "calendar.badge.exclamationmark",
-                    description: Text("No hay sprints disponibles para este proyecto.")
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let sprints = availableSprints {
-                ScrollView {
-                    VStack(spacing: 8) {
-                        ForEach(sprints) { sprint in
-                            Button {
-                                Task { await taskStore.addToSprint(task, sprintId: sprint.id) }
-                                showingSprintPicker = false
-                            } label: {
-                                HStack(spacing: 12) {
-                                    sprintStateIcon(sprint.state)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(sprint.name)
+            if selectedBoardId == nil {
+                // Paso 1: lista de boards
+                if isLoadingBoards || availableBoards == nil {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Cargando boards...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if availableBoards?.isEmpty == true {
+                    ContentUnavailableView(
+                        "Sin boards",
+                        systemImage: "rectangle.grid.2x2",
+                        description: Text("No hay boards disponibles para este proyecto.")
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let boards = availableBoards {
+                    TextField("Buscar board...", text: $boardSearchText)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.bottom, 12)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(boards.filter { boardSearchText.isEmpty || $0.name.localizedCaseInsensitiveContains(boardSearchText) }) { board in
+                                Button {
+                                    selectedBoardId = board.id
+                                    availableSprints = nil
+                                    isLoadingSprints = true
+                                    Task {
+                                        availableSprints = await taskStore.fetchSprintsForBoard(boardId: board.id)
+                                        isLoadingSprints = false
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "rectangle.grid.2x2")
+                                            .font(.title2)
+                                            .foregroundStyle(.secondary)
+                                        Text(board.name)
                                             .font(.body)
                                             .fontWeight(.medium)
                                             .foregroundStyle(.primary)
                                             .lineLimit(1)
-                                        if let state = sprint.state {
-                                            Text(sprintStateLabel(state))
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                        Image(systemName: "chevron.right")
+                                            .font(.caption)
+                                            .foregroundStyle(.tertiary)
                                     }
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    sprintStateBadge(sprint.state)
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 12)
+                                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
                                 }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-                                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                                .buttonStyle(.plain)
                             }
-                            .buttonStyle(.plain)
                         }
+                        .padding(.vertical, 4)
                     }
-                    .padding(.vertical, 4)
+                }
+            } else {
+                // Paso 2: sprints del board seleccionado
+                if isLoadingSprints || availableSprints == nil {
+                    VStack(spacing: 16) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text("Cargando sprints...")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if availableSprints?.isEmpty == true {
+                    ContentUnavailableView(
+                        "Sin sprints",
+                        systemImage: "calendar.badge.exclamationmark",
+                        description: Text("Este board no tiene sprints.")
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if let sprints = availableSprints {
+                    TextField("Buscar sprint...", text: $sprintSearchText)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.bottom, 12)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(sprints.filter { sprintSearchText.isEmpty || $0.name.localizedCaseInsensitiveContains(sprintSearchText) }) { sprint in
+                                Button {
+                                    showingSprintPicker = false
+                                    Task { await taskStore.addToSprint(task, sprintId: sprint.id, sprintName: sprint.name) }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        sprintStateIcon(sprint.state)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(sprint.name)
+                                                .font(.body)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(.primary)
+                                                .lineLimit(1)
+                                            if let state = sprint.state {
+                                                Text(sprintStateLabel(state))
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        sprintStateBadge(sprint.state)
+                                    }
+                                    .padding(.horizontal, 14)
+                                    .padding(.vertical, 12)
+                                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
                 }
             }
         }

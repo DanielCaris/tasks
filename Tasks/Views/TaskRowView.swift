@@ -19,15 +19,6 @@ struct TaskRowView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if let sprint = task.sprint {
-                HStack(spacing: 6) {
-                    Image(systemName: "flag.checkered")
-                        .font(.caption2)
-                    Text(sprint)
-                        .font(.caption2)
-                }
-                .foregroundStyle(.secondary)
-            }
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
@@ -41,6 +32,19 @@ struct TaskRowView: View {
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
+                        if let sprint = task.sprint, !sprint.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "flag.checkered")
+                                    .font(.caption2)
+                                Text(sprint)
+                                    .font(.caption2)
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.quaternary.opacity(0.8), in: Capsule())
+                        }
                     }
 
                     Text(task.title)

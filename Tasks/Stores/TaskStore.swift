@@ -599,7 +599,31 @@ final class TaskStore: ObservableObject {
         }
     }
 
-    /// Obtiene sprints disponibles para el proyecto de la tarea. Solo Jira.
+    /// Obtiene boards disponibles para el proyecto. Solo Jira.
+    func fetchBoards(for task: TaskItem) async -> [BoardOption] {
+        guard let provider = provider as? JiraProvider else { return [] }
+        let projectKey = String(task.externalId.split(separator: "-").first ?? "")
+        guard !projectKey.isEmpty else { return [] }
+        do {
+            return try await provider.fetchBoards(projectKey: projectKey)
+        } catch {
+            AppLog.error(error.localizedDescription, context: "fetchBoards(\(task.externalId))")
+            return []
+        }
+    }
+
+    /// Obtiene sprints de un board específico. Solo Jira.
+    func fetchSprintsForBoard(boardId: Int) async -> [SprintOption] {
+        guard let provider = provider as? JiraProvider else { return [] }
+        do {
+            return try await provider.fetchSprintsForBoard(boardId: boardId)
+        } catch {
+            AppLog.error(error.localizedDescription, context: "fetchSprintsForBoard(\(boardId))")
+            return []
+        }
+    }
+
+    /// Obtiene sprints (primer board con sprints). Mantiene compatibilidad.
     func fetchSprints(for task: TaskItem) async -> [SprintOption] {
         guard let provider = provider as? JiraProvider else { return [] }
         let projectKey = String(task.externalId.split(separator: "-").first ?? "")
@@ -613,17 +637,24 @@ final class TaskStore: ObservableObject {
     }
 
     /// Añade la tarea a un sprint en Jira. Solo soportado por JiraProvider.
-    func addToSprint(_ task: TaskItem, sprintId: Int) async {
+    /// UI optimista: actualiza el sprint localmente antes de la llamada a la API.
+    func addToSprint(_ task: TaskItem, sprintId: Int, sprintName: String) async {
         guard let provider = provider as? JiraProvider else {
             errorMessage = "Asignar sprint solo está disponible con Jira."
             return
         }
         errorMessage = nil
+        let previousSprint = task.sprint
+        task.sprint = sprintName
+        try? modelContext.save()
+
         do {
             try await provider.addIssueToSprint(issueKey: task.externalId, sprintId: sprintId)
-            await refreshTask(task)
+            // No refrescar: Jira puede devolver el issue sin sprint por eventual consistency y borraría el valor
         } catch {
             AppLog.error(error.localizedDescription, context: "addToSprint(\(task.externalId))")
+            task.sprint = previousSprint
+            try? modelContext.save()
             if isNotFoundOrForbidden(error) {
                 deleteTaskFromList(task)
                 errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."

@@ -7,6 +7,12 @@ struct ProjectOption: Identifiable {
     var id: String { key }
 }
 
+/// Opción de board para seleccionar de qué equipo/board cargar sprints.
+struct BoardOption: Identifiable {
+    let id: Int
+    let name: String
+}
+
 /// Opción de sprint para asignar a un issue.
 struct SprintOption: Identifiable {
     let id: Int
