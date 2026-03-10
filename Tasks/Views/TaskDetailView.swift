@@ -151,7 +151,8 @@ struct TaskDetailView: View {
     }
 
     private var isEpic: Bool {
-        task.issueType?.lowercased() == "epic"
+        let t = task.issueType?.lowercased() ?? ""
+        return t == "epic" || t == "épica"
     }
 
     private var addSubtaskSheet: some View {
@@ -282,35 +283,37 @@ struct TaskDetailView: View {
 
     private var labelsAndSprintRow: some View {
         HStack(spacing: 6) {
-            // Sprint: pill clickeable (abre picker). Si tiene sprint, muestra x para limpiar.
-            HStack(spacing: 4) {
-                Button {
-                    openSprintPicker()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flag.checkered")
-                            .font(.caption2)
-                        Text(task.sprint ?? "Agregar sprint")
-                            .font(.caption2)
-                    }
-                }
-                .buttonStyle(.plain)
-                if let sprint = task.sprint, !sprint.isEmpty {
+            // Sprint: solo para no-épicas (las épicas no tienen sprint en Jira).
+            if !isEpic {
+                HStack(spacing: 4) {
                     Button {
-                        Task { await taskStore.removeFromSprint(task) }
+                        openSprintPicker()
                     } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 4) {
+                            Image(systemName: "flag.checkered")
+                                .font(.caption2)
+                            Text(task.sprint ?? "Agregar sprint")
+                                .font(.caption2)
+                        }
                     }
                     .buttonStyle(.plain)
-                    .help("Quitar sprint")
+                    if let sprint = task.sprint, !sprint.isEmpty {
+                        Button {
+                            Task { await taskStore.removeFromSprint(task) }
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Quitar sprint")
+                    }
                 }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(.quaternary.opacity(0.8), in: Capsule())
             }
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(.quaternary.opacity(0.8), in: Capsule())
             // Labels después
             ForEach(editableLabels, id: \.self) { label in
                 HStack(spacing: 2) {

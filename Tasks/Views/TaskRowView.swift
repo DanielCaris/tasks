@@ -17,6 +17,11 @@ struct TaskRowView: View {
         _effort = State(initialValue: task.effort ?? 1)
     }
 
+    private var isEpic: Bool {
+        let t = task.issueType?.lowercased() ?? ""
+        return t == "epic" || t == "épica"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
@@ -32,7 +37,7 @@ struct TaskRowView: View {
                             .font(.caption)
                             .fontWeight(.semibold)
                             .foregroundStyle(.secondary)
-                        if let sprint = task.sprint, !sprint.isEmpty {
+                        if !isEpic, let sprint = task.sprint, !sprint.isEmpty {
                             HStack(spacing: 4) {
                                 Image(systemName: "flag.checkered")
                                     .font(.caption2)

@@ -854,7 +854,8 @@ final class JiraProvider: IssueProviderProtocol {
         let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
         let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
         let labels = issue.fields.labels?.isEmpty == false ? issue.fields.labels : nil
-        let sprint = extractSprintFromIssueJSON(data) ?? issue.fields.sprintName
+        let isEpic = (issue.fields.issuetype?.name ?? "").lowercased().contains("epic") || (issue.fields.issuetype?.name ?? "").lowercased().contains("épica")
+        let sprint = isEpic ? nil : extractSprintFromIssueJSON(data)
         return IssueDTO(
             externalId: issue.key,
             title: issue.fields.summary,
@@ -1060,9 +1061,22 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
+    /// Verifica si un objeto parece ser un sprint (tiene id, name, y opcionalmente state).
+    private static func isSprintObject(_ obj: [String: Any]) -> Bool {
+        guard let _ = obj["id"] as? Int,
+              let _ = obj["name"] as? String else {
+            return false
+        }
+        // Sprint objects tienen "state" (active/closed/future) o son del endpoint de sprint
+        return obj["state"] != nil || obj["self"] != nil
+    }
+
     /// Extrae el mejor sprint de un array (preferir active, luego future, luego closed).
     private static func bestSprintName(from arr: [[String: Any]]) -> String? {
-        arr.compactMap { item -> (name: String, priority: Int)? in
+        let validSprints = arr.filter { isSprintObject($0) }
+        guard !validSprints.isEmpty else { return nil }
+        
+        return validSprints.compactMap { item -> (name: String, priority: Int)? in
             guard let name = item["name"] as? String, !name.isEmpty else { return nil }
             let state = item["state"] as? String
             return (name, sprintStatePriority(state))
@@ -1076,7 +1090,7 @@ final class JiraProvider: IssueProviderProtocol {
         for (key, value) in fields {
             guard key.hasPrefix("customfield_") else { continue }
             if let arr = value as? [[String: Any]], let name = Self.bestSprintName(from: arr) { return name }
-            if let obj = value as? [String: Any], let name = obj["name"] as? String, !name.isEmpty { return name }
+            if let obj = value as? [String: Any], Self.isSprintObject(obj), let name = obj["name"] as? String, !name.isEmpty { return name }
         }
         return nil
     }
@@ -1094,7 +1108,7 @@ final class JiraProvider: IssueProviderProtocol {
                     result[key] = name
                     break
                 }
-                if let obj = value as? [String: Any], let name = obj["name"] as? String, !name.isEmpty {
+                if let obj = value as? [String: Any], Self.isSprintObject(obj), let name = obj["name"] as? String, !name.isEmpty {
                     result[key] = name
                     break
                 }
@@ -1147,7 +1161,8 @@ final class JiraProvider: IssueProviderProtocol {
             let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
             let resolvedParent: String? = forceParentKey ? parentKey : (parentKey ?? issue.fields.parent?.key)
             let labels = issue.fields.labels?.isEmpty == false ? issue.fields.labels : nil
-            let sprint = sprintByKey[issue.key] ?? issue.fields.sprintName
+            let isEpic = (issue.fields.issuetype?.name ?? "").lowercased().contains("epic") || (issue.fields.issuetype?.name ?? "").lowercased().contains("épica")
+            let sprint = isEpic ? nil : sprintByKey[issue.key]
             results.append(IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,

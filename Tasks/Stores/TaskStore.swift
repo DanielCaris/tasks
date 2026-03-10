@@ -221,9 +221,11 @@ final class TaskStore: ObservableObject {
                 existing.url = dto.url
                 existing.priority = dto.priority
                 existing.labelsString = dto.labels?.joined(separator: ", ")
-                existing.sprint = dto.sprint
+                let isEpic = (dto.issueType ?? "").lowercased().contains("epic") || (dto.issueType ?? "").lowercased().contains("épica")
+                existing.sprint = isEpic ? nil : dto.sprint
                 existing.lastSyncedAt = Date()
             } else {
+                let isEpic = (dto.issueType ?? "").lowercased().contains("epic") || (dto.issueType ?? "").lowercased().contains("épica")
                 let task = TaskItem(
                     providerId: providerId,
                     externalId: dto.externalId,
@@ -238,7 +240,7 @@ final class TaskStore: ObservableObject {
                     url: dto.url,
                     priority: dto.priority,
                     labelsString: dto.labels?.joined(separator: ", "),
-                    sprint: dto.sprint
+                    sprint: isEpic ? nil : dto.sprint
                 )
                 modelContext.insert(task)
             }

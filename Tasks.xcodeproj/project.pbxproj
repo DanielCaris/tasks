@@ -35,6 +35,7 @@
 		TASK027 /* ADFUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK127 /* ADFUtils.swift */; };
 		TASK028 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = TASK128 /* Color+Hex.swift */; };
 		TEST001 /* MarkdownToADFTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TEST101 /* MarkdownToADFTests.swift */; };
+		TEST002 /* SprintExtractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = TEST102 /* SprintExtractionTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -68,6 +69,7 @@
 		TASK127 /* ADFUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ADFUtils.swift; sourceTree = "<group>"; };
 		TASK128 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
 		TEST101 /* MarkdownToADFTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownToADFTests.swift; sourceTree = "<group>"; };
+		TEST102 /* SprintExtractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SprintExtractionTests.swift; sourceTree = "<group>"; };
 		TEST000 /* TasksTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TasksTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -102,6 +104,7 @@
 			isa = PBXGroup;
 			children = (
 				TEST101 /* MarkdownToADFTests.swift */,
+				TEST102 /* SprintExtractionTests.swift */,
 			);
 			path = TasksTests;
 			sourceTree = "<group>";
@@ -346,6 +349,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				TEST001 /* MarkdownToADFTests.swift in Sources */,
+				TEST002 /* SprintExtractionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
