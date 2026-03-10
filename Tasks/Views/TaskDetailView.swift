@@ -62,6 +62,8 @@ struct TaskDetailView: View {
     @State private var boardSearchText = ""
     @State private var sprintSearchText = ""
     @State private var isCurrentBoardPriority = false
+    @State private var sprintCache: [Int: [SprintOption]] = [:]
+    @State private var isRefreshingSprints = false
 
     init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
         self.task = task
@@ -251,16 +253,31 @@ struct TaskDetailView: View {
             selectedBoardId = priorityBoardId
             isCurrentBoardPriority = true
             availableBoards = nil
-            availableSprints = nil
+            
+            // Mostrar cache inmediatamente si existe
+            if let cached = sprintCache[priorityBoardId] {
+                availableSprints = cached
+                isLoadingSprints = false
+                isRefreshingSprints = true
+            } else {
+                availableSprints = nil
+                isLoadingSprints = true
+                isRefreshingSprints = false
+            }
+            
             isLoadingBoards = true
-            isLoadingSprints = true
+            
+            // SIEMPRE recargar en background para actualizar
             Task {
                 let sprints = await taskStore.fetchSprintsForBoard(boardId: priorityBoardId)
                 await MainActor.run {
                     availableSprints = sprints
+                    sprintCache[priorityBoardId] = sprints
                     isLoadingSprints = false
+                    isRefreshingSprints = false
                 }
             }
+            // Cargar boards en paralelo
             Task {
                 let boards = await taskStore.fetchBoards(for: task)
                 await MainActor.run {
@@ -274,6 +291,7 @@ struct TaskDetailView: View {
             availableSprints = nil
             isLoadingBoards = true
             isLoadingSprints = false
+            isRefreshingSprints = false
             Task {
                 availableBoards = await taskStore.fetchBoards(for: task)
                 isLoadingBoards = false
@@ -391,9 +409,20 @@ struct TaskDetailView: View {
                     }
                 }
                 Spacer()
-                Text(selectedBoardId == nil ? "Seleccionar board" : "Seleccionar sprint")
-                    .font(.title2)
-                    .fontWeight(.semibold)
+                VStack(spacing: 2) {
+                    Text(selectedBoardId == nil ? "Seleccionar board" : "Seleccionar sprint")
+                        .font(.title2)
+                        .fontWeight(.semibold)
+                    if isRefreshingSprints {
+                        HStack(spacing: 4) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text("Actualizando...")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
                 Spacer()
                 Button("Cancelar") {
                     showingSprintPicker = false
@@ -430,11 +459,27 @@ struct TaskDetailView: View {
                                 Button {
                                     selectedBoardId = board.id
                                     isCurrentBoardPriority = KeychainHelper.loadPriorityBoard(projectKey: projectKey) == board.id
-                                    availableSprints = nil
-                                    isLoadingSprints = true
-                                    Task {
-                                        availableSprints = await taskStore.fetchSprintsForBoard(boardId: board.id)
+                                    
+                                    // Mostrar cache si existe
+                                    if let cached = sprintCache[board.id] {
+                                        availableSprints = cached
                                         isLoadingSprints = false
+                                        isRefreshingSprints = true
+                                    } else {
+                                        availableSprints = nil
+                                        isLoadingSprints = true
+                                        isRefreshingSprints = false
+                                    }
+                                    
+                                    // SIEMPRE recargar en background
+                                    Task {
+                                        let sprints = await taskStore.fetchSprintsForBoard(boardId: board.id)
+                                        await MainActor.run {
+                                            availableSprints = sprints
+                                            sprintCache[board.id] = sprints
+                                            isLoadingSprints = false
+                                            isRefreshingSprints = false
+                                        }
                                     }
                                 } label: {
                                     HStack(spacing: 12) {
