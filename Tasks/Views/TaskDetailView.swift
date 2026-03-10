@@ -61,6 +61,7 @@ struct TaskDetailView: View {
     @State private var isLoadingSprints = false
     @State private var boardSearchText = ""
     @State private var sprintSearchText = ""
+    @State private var isCurrentBoardPriority = false
 
     init(task: TaskItem, taskStore: TaskStore, onSelectSubtask: ((TaskItem) -> Void)? = nil, onSelectParent: ((TaskItem) -> Void)? = nil) {
         self.task = task
@@ -237,21 +238,39 @@ struct TaskDetailView: View {
         }
     }
 
+    private var projectKey: String {
+        String(task.externalId.split(separator: "-").first ?? "")
+    }
+
     private var labelsAndSprintRow: some View {
         HStack(spacing: 6) {
             // Sprint: pill clickeable siempre (abre picker para agregar o cambiar)
             Button {
                 showingSprintPicker = true
-                selectedBoardId = nil
-                availableBoards = nil
-                availableSprints = nil
                 boardSearchText = ""
                 sprintSearchText = ""
-                isLoadingBoards = true
-                isLoadingSprints = false
-                Task {
-                    availableBoards = await taskStore.fetchBoards(for: task)
+                if let priorityBoardId = KeychainHelper.loadPriorityBoard(projectKey: projectKey), !projectKey.isEmpty {
+                    // Board prioritario: cargar sprints directo (más rápido)
+                    selectedBoardId = priorityBoardId
+                    isCurrentBoardPriority = true
+                    availableBoards = nil
+                    availableSprints = nil
                     isLoadingBoards = false
+                    isLoadingSprints = true
+                    Task {
+                        availableSprints = await taskStore.fetchSprintsForBoard(boardId: priorityBoardId)
+                        isLoadingSprints = false
+                    }
+                } else {
+                    selectedBoardId = nil
+                    availableBoards = nil
+                    availableSprints = nil
+                    isLoadingBoards = true
+                    isLoadingSprints = false
+                    Task {
+                        availableBoards = await taskStore.fetchBoards(for: task)
+                        isLoadingBoards = false
+                    }
                 }
             } label: {
                 HStack(spacing: 4) {
@@ -324,6 +343,23 @@ struct TaskDetailView: View {
                         Text("Boards")
                     }
                     .buttonStyle(.plain)
+                    if let bid = selectedBoardId {
+                        Button {
+                            if isCurrentBoardPriority {
+                                KeychainHelper.clearPriorityBoard(projectKey: projectKey)
+                                isCurrentBoardPriority = false
+                            } else {
+                                KeychainHelper.savePriorityBoard(projectKey: projectKey, boardId: bid)
+                                isCurrentBoardPriority = true
+                            }
+                        } label: {
+                            Image(systemName: isCurrentBoardPriority ? "star.fill" : "star")
+                                .font(.subheadline)
+                                .foregroundStyle(isCurrentBoardPriority ? .yellow : .secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help(isCurrentBoardPriority ? "Quitar board prioritario" : "Marcar como board prioritario")
+                    }
                 }
                 Spacer()
                 Text(selectedBoardId == nil ? "Seleccionar board" : "Seleccionar sprint")
@@ -364,6 +400,7 @@ struct TaskDetailView: View {
                             ForEach(boards.filter { boardSearchText.isEmpty || $0.name.localizedCaseInsensitiveContains(boardSearchText) }) { board in
                                 Button {
                                     selectedBoardId = board.id
+                                    isCurrentBoardPriority = KeychainHelper.loadPriorityBoard(projectKey: projectKey) == board.id
                                     availableSprints = nil
                                     isLoadingSprints = true
                                     Task {
@@ -381,6 +418,11 @@ struct TaskDetailView: View {
                                             .foregroundStyle(.primary)
                                             .lineLimit(1)
                                             .frame(maxWidth: .infinity, alignment: .leading)
+                                        if KeychainHelper.loadPriorityBoard(projectKey: projectKey) == board.id {
+                                            Image(systemName: "star.fill")
+                                                .font(.caption)
+                                                .foregroundStyle(.yellow)
+                                        }
                                         Image(systemName: "chevron.right")
                                             .font(.caption)
                                             .foregroundStyle(.tertiary)

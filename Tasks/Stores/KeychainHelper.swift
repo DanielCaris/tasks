@@ -124,4 +124,28 @@ enum KeychainHelper {
         if let hex = saved, !hex.isEmpty { return hex }
         return defaultStatusColors[status] ?? "808080"
     }
+
+    /// Board prioritario por proyecto (projectKey -> boardId). Carga sprints directo sin listar boards.
+    private static let priorityBoardsKey = prefix + "priority_boards"
+
+    static func savePriorityBoard(projectKey: String, boardId: Int) {
+        var dict = loadAllPriorityBoards()
+        dict[projectKey] = boardId
+        suite.set(dict, forKey: priorityBoardsKey)
+    }
+
+    static func loadPriorityBoard(projectKey: String) -> Int? {
+        loadAllPriorityBoards()[projectKey]
+    }
+
+    static func clearPriorityBoard(projectKey: String) {
+        var dict = loadAllPriorityBoards()
+        dict.removeValue(forKey: projectKey)
+        suite.set(dict, forKey: priorityBoardsKey)
+    }
+
+    private static func loadAllPriorityBoards() -> [String: Int] {
+        guard let raw = suite.dictionary(forKey: priorityBoardsKey) else { return [:] }
+        return raw.compactMapValues { $0 as? Int }
+    }
 }
