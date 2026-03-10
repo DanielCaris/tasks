@@ -250,16 +250,26 @@ struct TaskDetailView: View {
                 boardSearchText = ""
                 sprintSearchText = ""
                 if let priorityBoardId = KeychainHelper.loadPriorityBoard(projectKey: projectKey), !projectKey.isEmpty {
-                    // Board prioritario: cargar sprints directo (más rápido)
+                    // Board prioritario: sprints de una, boards en paralelo (para "Cambiar board")
                     selectedBoardId = priorityBoardId
                     isCurrentBoardPriority = true
                     availableBoards = nil
                     availableSprints = nil
-                    isLoadingBoards = false
+                    isLoadingBoards = true
                     isLoadingSprints = true
                     Task {
-                        availableSprints = await taskStore.fetchSprintsForBoard(boardId: priorityBoardId)
-                        isLoadingSprints = false
+                        let sprints = await taskStore.fetchSprintsForBoard(boardId: priorityBoardId)
+                        await MainActor.run {
+                            availableSprints = sprints
+                            isLoadingSprints = false
+                        }
+                    }
+                    Task {
+                        let boards = await taskStore.fetchBoards(for: task)
+                        await MainActor.run {
+                            availableBoards = boards
+                            isLoadingBoards = false
+                        }
                     }
                 } else {
                     selectedBoardId = nil
