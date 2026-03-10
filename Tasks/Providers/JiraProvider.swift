@@ -777,7 +777,7 @@ final class JiraProvider: IssueProviderProtocol {
     }
 
     private func fetchIssueInternal(issueKey: String) async throws -> IssueDTO {
-        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=summary,description,status,priority,assignee,created,updated,attachment,issuetype,labels,customfield_10020") else {
+        guard let url = URL(string: "\(baseURL)/rest/api/3/issue/\(issueKey)?fields=\(jiraFieldsForSearch)") else {
             throw JiraError.invalidURL
         }
 
@@ -828,7 +828,7 @@ final class JiraProvider: IssueProviderProtocol {
         let descriptionHTML = desc?.adfDict.flatMap { ADFToHTML.convert(adf: $0, baseURL: baseURL, attachmentMap: attachmentMap, imageAttachmentIdsInOrder: imageIds, mediaIdToSignedURL: mediaIdToSignedURL) }
         let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
         let labels = issue.fields.labels?.isEmpty == false ? issue.fields.labels : nil
-        let sprint = issue.fields.sprintName
+        let sprint = extractSprintFromIssueJSON(data) ?? issue.fields.sprintName
         return IssueDTO(
             externalId: issue.key,
             title: issue.fields.summary,
@@ -937,7 +937,7 @@ final class JiraProvider: IssueProviderProtocol {
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "100"),
-            URLQueryItem(name: "fields", value: "summary,description,status,priority,assignee,created,updated,attachment,parent,issuetype,labels,customfield_10020")
+            URLQueryItem(name: "fields", value: jiraFieldsForSearch)
         ]
         return components?.url
     }
@@ -999,7 +999,7 @@ final class JiraProvider: IssueProviderProtocol {
         components?.queryItems = [
             URLQueryItem(name: "jql", value: jql),
             URLQueryItem(name: "maxResults", value: "50"),
-            URLQueryItem(name: "fields", value: "summary,description,status,assignee,priority,created,updated,attachment,issuetype,parent,labels,customfield_10020")
+            URLQueryItem(name: "fields", value: jiraFieldsForSearch)
         ]
         return components?.url
     }
@@ -1024,7 +1024,43 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
+    /// Extrae sprint de un issue individual (GET /issue/{key}).
+    private func extractSprintFromIssueJSON(_ data: Data) -> String? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let fields = json["fields"] as? [String: Any] else { return nil }
+        for (key, value) in fields {
+            guard key.hasPrefix("customfield_") else { continue }
+            if let arr = value as? [[String: Any]], let first = arr.first, let name = first["name"] as? String, !name.isEmpty { return name }
+            if let obj = value as? [String: Any], let name = obj["name"] as? String, !name.isEmpty { return name }
+        }
+        return nil
+    }
+
+    /// Extrae sprint por issue key desde el JSON crudo (detecta cualquier customfield con estructura de sprint).
+    private func extractSprintByIssueKey(from data: Data) -> [String: String] {
+        var result: [String: String] = [:]
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return result }
+        let issues = (json["issues"] as? [[String: Any]]) ?? (json["values"] as? [[String: Any]]) ?? []
+        for issue in issues {
+            guard let key = issue["key"] as? String, let fields = issue["fields"] as? [String: Any] else { continue }
+            for (fieldKey, value) in fields {
+                guard fieldKey.hasPrefix("customfield_") else { continue }
+                if let arr = value as? [[String: Any]], let first = arr.first, let name = first["name"] as? String, !name.isEmpty {
+                    result[key] = name
+                    break
+                }
+                if let obj = value as? [String: Any], let name = obj["name"] as? String, !name.isEmpty {
+                    result[key] = name
+                    break
+                }
+            }
+        }
+        return result
+    }
+
     private func parseSearchResponse(data: Data, parentKey: String? = nil, forceParentKey: Bool = false) async throws -> [IssueDTO] {
+        let sprintByKey = extractSprintByIssueKey(from: data)
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -1066,7 +1102,7 @@ final class JiraProvider: IssueProviderProtocol {
             let descriptionADFJSON = desc?.adfDict.flatMap { (try? JSONSerialization.data(withJSONObject: $0)).flatMap { String(data: $0, encoding: .utf8) } }
             let resolvedParent: String? = forceParentKey ? parentKey : (parentKey ?? issue.fields.parent?.key)
             let labels = issue.fields.labels?.isEmpty == false ? issue.fields.labels : nil
-            let sprint = issue.fields.sprintName
+            let sprint = sprintByKey[issue.key] ?? issue.fields.sprintName
             results.append(IssueDTO(
                 externalId: issue.key,
                 title: issue.fields.summary,
@@ -1090,6 +1126,9 @@ final class JiraProvider: IssueProviderProtocol {
 }
 
 // MARK: - Jira API Response Models
+
+/// Campos para búsqueda. *all incluye el sprint (su ID varía por instancia).
+private let jiraFieldsForSearch = "*all"
 
 private struct JiraSearchResponse: Decodable {
     let issues: [JiraIssue]
@@ -1116,12 +1155,40 @@ private struct JiraIssueFields: Decodable {
     let attachment: [JiraAttachment]?
     let parent: JiraParent?
     let labels: [String]?
-    /// Sprint field (customfield_10020 en Jira Software Cloud). Array de objetos con "name".
-    let customfield_10020: [JiraSprintInfo]?
 
-    /// Nombre del sprint activo (primer elemento del array).
-    var sprintName: String? {
-        customfield_10020?.first?.name
+    /// Nombre del sprint (extrae de customfield_10020, 10021, etc. según la instancia).
+    let sprintName: String?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        summary = try c.decode(String.self, forKey: .summary)
+        description = try c.decodeIfPresent(JiraDescription.self, forKey: .description)
+        status = try c.decode(JiraStatus.self, forKey: .status)
+        priority = try c.decodeIfPresent(JiraPriority.self, forKey: .priority)
+        assignee = try c.decodeIfPresent(JiraUser.self, forKey: .assignee)
+        issuetype = try c.decodeIfPresent(JiraIssueType.self, forKey: .issuetype)
+        created = try c.decodeIfPresent(Date.self, forKey: .created)
+        updated = try c.decodeIfPresent(Date.self, forKey: .updated)
+        attachment = try c.decodeIfPresent([JiraAttachment].self, forKey: .attachment)
+        parent = try c.decodeIfPresent(JiraParent.self, forKey: .parent)
+        labels = try c.decodeIfPresent([String].self, forKey: .labels)
+
+        // Sprint: intentar cada ID de campo (varía por instancia)
+        var found: String?
+        for key in [CodingKeys.customfield_10020, .customfield_10021, .customfield_10016, .customfield_10017] {
+            if let arr = (try? c.decodeIfPresent([JiraSprintInfo].self, forKey: key)).flatMap({ $0 }),
+               let first = arr.first?.name, !first.isEmpty {
+                found = first
+                break
+            }
+        }
+        sprintName = found
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case summary, description, status, priority, assignee, issuetype, created, updated
+        case attachment, parent, labels
+        case customfield_10020, customfield_10021, customfield_10016, customfield_10017
     }
 }
 

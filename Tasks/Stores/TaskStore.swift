@@ -74,13 +74,14 @@ final class TaskStore: ObservableObject {
     }
 
     /// Icono SF Symbol outline según tipo: épica rayo, historia marcador, task checkbox, sub-task indent.
+    /// Soporta inglés y español (Jira localizado).
     func issueTypeIcon(for task: TaskItem) -> String {
         switch task.issueType?.lowercased() {
-        case "epic": return "bolt"
-        case "task": return "checkmark.square"
-        case "story": return "bookmark"
-        case "bug": return "ladybug.fill"
-        case "sub-task", "subtask": return "arrow.turn.down.right"
+        case "epic", "épica": return "bolt"
+        case "task", "tarea": return "checkmark.square"
+        case "story", "historia": return "bookmark"
+        case "bug", "error": return "ladybug.fill"
+        case "sub-task", "subtask", "sub-tarea", "subtarea": return "arrow.turn.down.right"
         default: return "circle"
         }
     }
