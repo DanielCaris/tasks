@@ -242,59 +242,75 @@ struct TaskDetailView: View {
         String(task.externalId.split(separator: "-").first ?? "")
     }
 
+    private func openSprintPicker() {
+        showingSprintPicker = true
+        boardSearchText = ""
+        sprintSearchText = ""
+        if let priorityBoardId = KeychainHelper.loadPriorityBoard(projectKey: projectKey), !projectKey.isEmpty {
+            selectedBoardId = priorityBoardId
+            isCurrentBoardPriority = true
+            availableBoards = nil
+            availableSprints = nil
+            isLoadingBoards = true
+            isLoadingSprints = true
+            Task {
+                let sprints = await taskStore.fetchSprintsForBoard(boardId: priorityBoardId)
+                await MainActor.run {
+                    availableSprints = sprints
+                    isLoadingSprints = false
+                }
+            }
+            Task {
+                let boards = await taskStore.fetchBoards(for: task)
+                await MainActor.run {
+                    availableBoards = boards
+                    isLoadingBoards = false
+                }
+            }
+        } else {
+            selectedBoardId = nil
+            availableBoards = nil
+            availableSprints = nil
+            isLoadingBoards = true
+            isLoadingSprints = false
+            Task {
+                availableBoards = await taskStore.fetchBoards(for: task)
+                isLoadingBoards = false
+            }
+        }
+    }
+
     private var labelsAndSprintRow: some View {
         HStack(spacing: 6) {
-            // Sprint: pill clickeable siempre (abre picker para agregar o cambiar)
-            Button {
-                showingSprintPicker = true
-                boardSearchText = ""
-                sprintSearchText = ""
-                if let priorityBoardId = KeychainHelper.loadPriorityBoard(projectKey: projectKey), !projectKey.isEmpty {
-                    // Board prioritario: sprints de una, boards en paralelo (para "Cambiar board")
-                    selectedBoardId = priorityBoardId
-                    isCurrentBoardPriority = true
-                    availableBoards = nil
-                    availableSprints = nil
-                    isLoadingBoards = true
-                    isLoadingSprints = true
-                    Task {
-                        let sprints = await taskStore.fetchSprintsForBoard(boardId: priorityBoardId)
-                        await MainActor.run {
-                            availableSprints = sprints
-                            isLoadingSprints = false
-                        }
-                    }
-                    Task {
-                        let boards = await taskStore.fetchBoards(for: task)
-                        await MainActor.run {
-                            availableBoards = boards
-                            isLoadingBoards = false
-                        }
-                    }
-                } else {
-                    selectedBoardId = nil
-                    availableBoards = nil
-                    availableSprints = nil
-                    isLoadingBoards = true
-                    isLoadingSprints = false
-                    Task {
-                        availableBoards = await taskStore.fetchBoards(for: task)
-                        isLoadingBoards = false
+            // Sprint: pill clickeable (abre picker). Si tiene sprint, muestra x para limpiar.
+            HStack(spacing: 4) {
+                Button {
+                    openSprintPicker()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "flag.checkered")
+                            .font(.caption2)
+                        Text(task.sprint ?? "Agregar sprint")
+                            .font(.caption2)
                     }
                 }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "flag.checkered")
-                        .font(.caption2)
-                    Text(task.sprint ?? "Agregar sprint")
-                        .font(.caption2)
+                .buttonStyle(.plain)
+                if let sprint = task.sprint, !sprint.isEmpty {
+                    Button {
+                        Task { await taskStore.removeFromSprint(task) }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Quitar sprint")
                 }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(.quaternary.opacity(0.8), in: Capsule())
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(.quaternary.opacity(0.8), in: Capsule())
             // Labels después
             ForEach(editableLabels, id: \.self) { label in
                 HStack(spacing: 2) {
@@ -473,8 +489,10 @@ struct TaskDetailView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(sprints.filter { sprintSearchText.isEmpty || $0.name.localizedCaseInsensitiveContains(sprintSearchText) }) { sprint in
                                 Button {
+                                    let selectedId = sprint.id
+                                    let selectedName = sprint.name
                                     showingSprintPicker = false
-                                    Task { await taskStore.addToSprint(task, sprintId: sprint.id, sprintName: sprint.name) }
+                                    Task { await taskStore.addToSprint(task, sprintId: selectedId, sprintName: selectedName) }
                                 } label: {
                                     HStack(spacing: 12) {
                                         sprintStateIcon(sprint.state)

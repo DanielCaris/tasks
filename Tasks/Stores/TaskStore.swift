@@ -648,6 +648,7 @@ final class TaskStore: ObservableObject {
         let previousSprint = task.sprint
         task.sprint = sprintName
         try? modelContext.save()
+        objectWillChange.send()  // Forzar re-render en TaskDetail y sidebar
 
         do {
             try await provider.addIssueToSprint(issueKey: task.externalId, sprintId: sprintId)
@@ -656,6 +657,35 @@ final class TaskStore: ObservableObject {
             AppLog.error(error.localizedDescription, context: "addToSprint(\(task.externalId))")
             task.sprint = previousSprint
             try? modelContext.save()
+            objectWillChange.send()
+            if isNotFoundOrForbidden(error) {
+                deleteTaskFromList(task)
+                errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."
+            } else {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    /// Quita la tarea del sprint (mueve al backlog). Solo Jira.
+    func removeFromSprint(_ task: TaskItem) async {
+        guard let provider = provider as? JiraProvider else {
+            errorMessage = "Quitar sprint solo está disponible con Jira."
+            return
+        }
+        errorMessage = nil
+        let previousSprint = task.sprint
+        task.sprint = nil
+        try? modelContext.save()
+        objectWillChange.send()
+
+        do {
+            try await provider.moveIssueToBacklog(issueKey: task.externalId)
+        } catch {
+            AppLog.error(error.localizedDescription, context: "removeFromSprint(\(task.externalId))")
+            task.sprint = previousSprint
+            try? modelContext.save()
+            objectWillChange.send()
             if isNotFoundOrForbidden(error) {
                 deleteTaskFromList(task)
                 errorMessage = "La tarea ya no existe en Jira y fue eliminada de la lista."

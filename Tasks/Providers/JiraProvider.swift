@@ -697,6 +697,32 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
+    /// Mueve un issue al backlog (lo quita del sprint).
+    func moveIssueToBacklog(issueKey: String) async throws {
+        guard let url = URL(string: "\(baseURL)/rest/agile/1.0/backlog/issue") else {
+            throw JiraError.invalidURL
+        }
+        let body: [String: Any] = ["issues": [issueKey]]
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let credentials = "\(email):\(apiToken)"
+        guard let credentialsData = credentials.data(using: .utf8) else {
+            throw JiraError.invalidCredentials
+        }
+        request.setValue("Basic \(credentialsData.base64EncodedString())", forHTTPHeaderField: "Authorization")
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw JiraError.invalidResponse
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let message = parseJiraError(data: data, statusCode: httpResponse.statusCode)
+            throw JiraError.apiError(statusCode: httpResponse.statusCode, message: message)
+        }
+    }
+
     private func fetchCurrentUserAccountId() async throws -> String {
         guard let url = URL(string: "\(baseURL)/rest/api/3/myself") else {
             throw JiraError.invalidURL
@@ -1024,13 +1050,32 @@ final class JiraProvider: IssueProviderProtocol {
         }
     }
 
+    /// Prioridad de estado de sprint: active > future > closed (mostrar el sprint "actual" que el usuario eligió).
+    private static func sprintStatePriority(_ state: String?) -> Int {
+        switch (state ?? "").lowercased() {
+        case "active": return 3
+        case "future": return 2
+        case "closed": return 1
+        default: return 0
+        }
+    }
+
+    /// Extrae el mejor sprint de un array (preferir active, luego future, luego closed).
+    private static func bestSprintName(from arr: [[String: Any]]) -> String? {
+        arr.compactMap { item -> (name: String, priority: Int)? in
+            guard let name = item["name"] as? String, !name.isEmpty else { return nil }
+            let state = item["state"] as? String
+            return (name, sprintStatePriority(state))
+        }.max(by: { $0.priority < $1.priority })?.name
+    }
+
     /// Extrae sprint de un issue individual (GET /issue/{key}).
     private func extractSprintFromIssueJSON(_ data: Data) -> String? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let fields = json["fields"] as? [String: Any] else { return nil }
         for (key, value) in fields {
             guard key.hasPrefix("customfield_") else { continue }
-            if let arr = value as? [[String: Any]], let first = arr.first, let name = first["name"] as? String, !name.isEmpty { return name }
+            if let arr = value as? [[String: Any]], let name = Self.bestSprintName(from: arr) { return name }
             if let obj = value as? [String: Any], let name = obj["name"] as? String, !name.isEmpty { return name }
         }
         return nil
@@ -1045,7 +1090,7 @@ final class JiraProvider: IssueProviderProtocol {
             guard let key = issue["key"] as? String, let fields = issue["fields"] as? [String: Any] else { continue }
             for (fieldKey, value) in fields {
                 guard fieldKey.hasPrefix("customfield_") else { continue }
-                if let arr = value as? [[String: Any]], let first = arr.first, let name = first["name"] as? String, !name.isEmpty {
+                if let arr = value as? [[String: Any]], let name = Self.bestSprintName(from: arr) {
                     result[key] = name
                     break
                 }
