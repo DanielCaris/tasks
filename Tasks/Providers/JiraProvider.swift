@@ -1071,16 +1071,19 @@ final class JiraProvider: IssueProviderProtocol {
         return obj["state"] != nil || obj["self"] != nil
     }
 
-    /// Extrae el mejor sprint de un array (preferir active, luego future, luego closed).
+    /// Extrae el mejor sprint de un array (preferir active, luego future). No devuelve sprints cerrados.
     private static func bestSprintName(from arr: [[String: Any]]) -> String? {
         let validSprints = arr.filter { isSprintObject($0) }
         guard !validSprints.isEmpty else { return nil }
         
-        return validSprints.compactMap { item -> (name: String, priority: Int)? in
+        let best = validSprints.compactMap { item -> (name: String, priority: Int)? in
             guard let name = item["name"] as? String, !name.isEmpty else { return nil }
             let state = item["state"] as? String
             return (name, sprintStatePriority(state))
-        }.max(by: { $0.priority < $1.priority })?.name
+        }.max(by: { $0.priority < $1.priority })
+        // No mostrar como seleccionado un sprint que ya pasó (closed)
+        guard let b = best, b.priority > 1 else { return nil }
+        return b.name
     }
 
     /// Extrae sprint de un issue individual (GET /issue/{key}).
@@ -1090,7 +1093,9 @@ final class JiraProvider: IssueProviderProtocol {
         for (key, value) in fields {
             guard key.hasPrefix("customfield_") else { continue }
             if let arr = value as? [[String: Any]], let name = Self.bestSprintName(from: arr) { return name }
-            if let obj = value as? [String: Any], Self.isSprintObject(obj), let name = obj["name"] as? String, !name.isEmpty { return name }
+            if let obj = value as? [String: Any], Self.isSprintObject(obj),
+               let name = obj["name"] as? String, !name.isEmpty,
+               Self.sprintStatePriority(obj["state"] as? String) > 1 { return name }
         }
         return nil
     }
@@ -1108,7 +1113,9 @@ final class JiraProvider: IssueProviderProtocol {
                     result[key] = name
                     break
                 }
-                if let obj = value as? [String: Any], Self.isSprintObject(obj), let name = obj["name"] as? String, !name.isEmpty {
+                if let obj = value as? [String: Any], Self.isSprintObject(obj),
+                   let name = obj["name"] as? String, !name.isEmpty,
+                   Self.sprintStatePriority(obj["state"] as? String) > 1 {
                     result[key] = name
                     break
                 }

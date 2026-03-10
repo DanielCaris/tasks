@@ -158,6 +158,14 @@ final class SprintExtractionTests: XCTestCase {
         XCTAssertEqual(result, "Real Sprint", "Debe extraer solo el sprint válido")
     }
 
+    func testBestSprintName_onlyClosedSprint_returnsNil() {
+        let closedOnly: [[String: Any]] = [
+            ["id": 1, "name": "Sprint Cerrado", "state": "closed"]
+        ]
+        let result = bestSprintName(from: closedOnly)
+        XCTAssertNil(result, "Un sprint que ya pasó no debe mostrarse como seleccionado")
+    }
+
     // MARK: - Test helpers (duplican la lógica privada de JiraProvider)
 
     private func isSprintObject(_ obj: [String: Any]) -> Bool {
@@ -181,10 +189,12 @@ final class SprintExtractionTests: XCTestCase {
         let validSprints = arr.filter { isSprintObject($0) }
         guard !validSprints.isEmpty else { return nil }
         
-        return validSprints.compactMap { item -> (name: String, priority: Int)? in
+        let best = validSprints.compactMap { item -> (name: String, priority: Int)? in
             guard let name = item["name"] as? String, !name.isEmpty else { return nil }
             let state = item["state"] as? String
             return (name, sprintStatePriority(state))
-        }.max(by: { $0.priority < $1.priority })?.name
+        }.max(by: { $0.priority < $1.priority })
+        guard let b = best, b.priority > 1 else { return nil }
+        return b.name
     }
 }
