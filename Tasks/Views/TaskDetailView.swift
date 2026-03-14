@@ -643,6 +643,14 @@ struct TaskDetailView: View {
                         Label("Abrir en Jira", systemImage: "arrow.up.right.square")
                             .font(.caption)
                     }
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                    } label: {
+                        Label("Copiar URL", systemImage: "doc.on.doc")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
                 }
                 if task.providerId == JiraProvider.providerId {
                     Button {
